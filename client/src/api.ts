@@ -49,6 +49,9 @@ export function onThisDevice(id: string | undefined) {
 /** Hosted API for linked accounts (e.g. the iOS app pointing at the beta server). Empty = same origin. */
 export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 
+/** Server-relative links (e.g. Google photos proxied at /api/places-photo) must point at the API host in the iOS app. */
+export const assetUrl = (url: string | undefined) => (url && API_BASE && url.startsWith('/api/') ? `${API_BASE}${url}` : url);
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -189,15 +192,28 @@ export function useAppState() {
     [apply],
   );
 
-  const signOut = useCallback(async () => {
-    await api('/auth/logout', {}).catch(() => {});
+  const forget = useCallback(() => {
     setCredential(null);
     forgetDevice();
     seq.current++;
     setState(null);
   }, []);
 
-  return { state, loading, apply, refresh, switchTo, signIn, signOut };
+  const signOut = useCallback(async () => {
+    await api('/auth/logout', {}).catch(() => {});
+    forget();
+  }, [forget]);
+
+  /** Permanently deletes the account (throws on a wrong password, so the form can show it). */
+  const deleteAccount = useCallback(
+    async (password?: string) => {
+      await api('/me/delete', { password });
+      forget();
+    },
+    [forget],
+  );
+
+  return { state, loading, apply, refresh, switchTo, signIn, signOut, deleteAccount };
 }
 
 export function useMeta() {

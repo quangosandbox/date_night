@@ -2,11 +2,13 @@
 // Uses Web Crypto only, so the same code runs on the server and in the on-device build.
 import type { User } from '../shared/types.ts';
 
+export type StoredToken = { h: string; exp: number };
+
 /** Server-only fields on a stored user. Never sent to a client (see publicUser). */
 export interface StoredUser extends User {
   auth?: { salt: string; iterations: number; hash: string };
-  /** SHA-256 of each live sign-in token's secret, newest last. */
-  tokens?: string[];
+  /** Live sign-in tokens: SHA-256 of the secret + expiry (ms). Newest last. */
+  tokens?: StoredToken[];
 }
 
 const enc = new TextEncoder();
@@ -17,6 +19,9 @@ export const sha256 = async (s: string) => hex(await subtle().digest('SHA-256', 
 
 const ITERATIONS = 210_000; // OWASP's PBKDF2-SHA256 recommendation
 const MAX_TOKENS = 10;
+/** Signed-in devices stay signed in this long, then log in again. */
+export const TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+const live = (tokens: StoredUser['tokens'], now = Date.now()) => (tokens ?? []).filter((t) => typeof t === 'object' && t.exp > now);
 
 export async function hashPassword(password: string, salt = randomHex(16), iterations = ITERATIONS) {
   const key = await subtle().importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
@@ -42,7 +47,7 @@ export const credentialUserId = (credential: string | null | undefined) => (cred
 /** Issues a new sign-in token for this user and returns the credential to hand to the client. */
 export async function issueToken(user: StoredUser) {
   const secret = randomHex(32);
-  user.tokens = [...(user.tokens ?? []), await sha256(secret)].slice(-MAX_TOKENS);
+  user.tokens = [...live(user.tokens), { h: await sha256(secret), exp: Date.now() + TOKEN_TTL_MS }].slice(-MAX_TOKENS);
   return `${user.id}.${secret}`;
 }
 
@@ -50,7 +55,7 @@ export async function revokeToken(user: StoredUser, credential: string | null) {
   const secret = credential?.split('.')[1];
   if (!secret) return;
   const h = await sha256(secret);
-  user.tokens = (user.tokens ?? []).filter((t) => t !== h);
+  user.tokens = live(user.tokens).filter((t) => t.h !== h);
 }
 
 /**
@@ -64,7 +69,8 @@ export async function authenticate(users: Record<string, StoredUser>, credential
   if (!user.auth) return user;
   const secret = credential!.split('.')[1];
   if (!secret) return undefined;
-  return user.tokens?.includes(await sha256(secret)) ? user : undefined;
+  const h = await sha256(secret);
+  return live(user.tokens).some((t) => t.h === h) ? user : undefined;
 }
 
 export const normalizeEmail = (email: unknown) => String(email ?? '').trim().toLowerCase();

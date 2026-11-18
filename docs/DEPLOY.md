@@ -6,8 +6,22 @@ The beta runs as **one Vercel project** (static web app + one Node function at `
 ## Current beta deployment
 - **Production URL:** https://date-night-swart.vercel.app (Vercel project `date-night`)
 - **Database:** Neon project `datenight`, region `aws-us-east-2`, database `neondb` (pooled connection)
-- **Env vars set:** `DATABASE_URL` (sensitive; production + preview). `GOOGLE_PLACES_API_KEY` is still to be added by
-  the owner. Until it is, the app serves demo restaurants.
+- **Env vars set:** `DATABASE_URL` (sensitive; production + preview) and `GOOGLE_PLACES_API_KEY` (sensitive; production).
+  Redeploy after changing either.
+
+## Operations
+- **Health check:** `GET /api/health` returns `{"ok":true,"db":true}` when the function and database are up. Point an
+  uptime monitor (Better Stack, UptimeRobot, Checkly) at it.
+- **Errors:** server errors and app crashes are written to the function log. In Vercel → Project → Logs, filter by
+  level *error*; app crashes are tagged `[client-error]`. For alerts, connect Sentry or a log drain (needs your account).
+- **Accounts:** email + password (PBKDF2). Each device gets its own sign-in token that expires after 90 days.
+  Changing the password signs out other devices. Users can delete their account in Profile; that also removes the
+  couple, its shared sessions and the demo partner. Their partner keeps their own account, unpaired.
+- **Rate limits** (counted in Postgres table `dn_rate`): log in 8 attempts per email and 30 per IP per 15 min; sign up
+  10 per IP per hour; password change, save account and delete 10 per user per hour; crash reports 30 per IP per 10 min.
+- **Security headers** (set in `scripts/build-vercel.mjs`): strict Content-Security-Policy (no third-party scripts),
+  HSTS, no framing, nosniff, geolocation limited to the site itself.
+- **CI:** `.github/workflows/ci.yml` runs the typecheck, unit tests, Postgres integration tests and all builds on every push.
 
 ## How it works on Vercel
 - `npm run build:vercel` writes a prebuilt bundle to `.vercel/output` (Build Output API v3):

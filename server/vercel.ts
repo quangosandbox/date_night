@@ -10,7 +10,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import pg from 'pg';
 import { credentialUserId, normalizeEmail } from './auth.ts';
-import { handle } from './core.ts';
+import { handle, setLimiter } from './core.ts';
 import { GOOGLE_KEY } from './providers/index.ts';
 import { resolvePlacesPhoto } from './providers/googlePlaces.ts';
 import { setScopeResolver, type DB } from './store.ts';
@@ -20,6 +20,25 @@ process.env.DN_BOT_SYNC ??= '1';
 
 const scope = new AsyncLocalStorage<DB>();
 setScopeResolver(() => scope.getStore());
+
+// Rate limits must hold across serverless instances, so they count in Postgres,
+// inside the request's own transaction.
+const requestClient = new AsyncLocalStorage<pg.PoolClient>();
+setLimiter({
+  async hit(key, max, windowSec) {
+    const c = requestClient.getStore();
+    if (!c) return true;
+    const { rows } = await c.query<{ count: number }>(
+      `INSERT INTO dn_rate (key, window_start, count) VALUES ($1, now(), 1)
+       ON CONFLICT (key) DO UPDATE SET
+         count = CASE WHEN dn_rate.window_start < now() - make_interval(secs => $2) THEN 1 ELSE dn_rate.count + 1 END,
+         window_start = CASE WHEN dn_rate.window_start < now() - make_interval(secs => $2) THEN now() ELSE dn_rate.window_start END
+       RETURNING count`,
+      [key, windowSec],
+    );
+    return rows[0].count <= max;
+  },
+});
 
 let pool: pg.Pool | null = null;
 function getPool() {
@@ -46,7 +65,8 @@ export function ensureSchema(client: pg.Pool | pg.PoolClient = getPool()) {
        );
        CREATE INDEX IF NOT EXISTS dn_docs_couple ON dn_docs (kind, couple_id);
        CREATE UNIQUE INDEX IF NOT EXISTS dn_docs_invite ON dn_docs (invite_code) WHERE invite_code IS NOT NULL;
-       CREATE UNIQUE INDEX IF NOT EXISTS dn_docs_email ON dn_docs (lower(data->>'email')) WHERE kind = 'user';`,
+       CREATE UNIQUE INDEX IF NOT EXISTS dn_docs_email ON dn_docs (lower(data->>'email')) WHERE kind = 'user';
+       CREATE TABLE IF NOT EXISTS dn_rate (key text PRIMARY KEY, window_start timestamptz NOT NULL, count int NOT NULL);`,
     )
     .then(() => undefined)
     .catch((e) => {
@@ -84,7 +104,7 @@ function docMeta(kind: Kind, doc: Record<string, unknown>): { coupleId: string |
 }
 
 /** Run one API call inside a transaction with a request-scoped DB. Exported for tests. */
-export async function runApi(method: string, path: string, credential: string | null, body: unknown, p: pg.Pool = getPool()) {
+export async function runApi(method: string, path: string, credential: string | null, body: unknown, p: pg.Pool = getPool(), ip = 'unknown') {
   const userId = credentialUserId(credential);
   await ensureSchema(p);
   const c = await p.connect();
@@ -120,7 +140,8 @@ export async function runApi(method: string, path: string, credential: string | 
     for (const kind of Object.keys(BUCKET) as Kind[])
       for (const [id, doc] of Object.entries(dbs[BUCKET[kind]])) before.set(`${kind}:${id}`, toDbJson(doc));
 
-    const result = await scope.run(dbs, () => handle(method, path, credential, body));
+    const myCouple = userId ? dbs.users[userId]?.coupleId ?? null : null;
+    const result = await scope.run(dbs, () => requestClient.run(c, () => handle(method, path, credential, body, { ip })));
 
     if (result.status < 500) {
       const seen = new Set<string>();
@@ -143,6 +164,9 @@ export async function runApi(method: string, path: string, credential: string | 
         const [kind, id] = key.split(':');
         await c.query(`DELETE FROM dn_docs WHERE kind = $1 AND id = $2`, [kind, id]);
       }
+      // Unpairing or deleting an account also removes the couple's older sessions (only recent ones were loaded).
+      if (result.status === 200 && myCouple && (path === '/couple/leave' || path === '/me/delete'))
+        await c.query(`DELETE FROM dn_docs WHERE kind = 'session' AND couple_id = $1`, [myCouple]);
     }
     await c.query('COMMIT');
     return result;
@@ -195,8 +219,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return res.end();
     }
 
-    const userId = (req.headers['x-user-id'] as string | undefined) || null;
-    const result = await runApi(req.method ?? 'GET', path, userId, await readBody(req));
+    if (url.pathname === '/api/health') {
+      // For uptime monitors: the function is up and the database answers.
+      await ensureSchema();
+      await getPool().query('SELECT 1');
+      return send(res, 200, { ok: true, db: true, at: new Date().toISOString() }, { ...cors, 'Cache-Control': 'no-store' });
+    }
+
+    const credential = (req.headers['x-user-id'] as string | undefined) || null;
+    const ip = String(req.headers['x-real-ip'] ?? req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() || 'unknown';
+    const result = await runApi(req.method ?? 'GET', path, credential, await readBody(req), getPool(), ip);
     return send(res, result.status, result.body, cors);
   } catch (e) {
     console.error(e);

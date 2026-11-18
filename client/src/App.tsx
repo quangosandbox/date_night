@@ -22,7 +22,7 @@ export interface ScreenProps {
 }
 
 export function App() {
-  const { state, loading, apply, switchTo: rawSwitch, signIn, signOut } = useAppState();
+  const { state, loading, apply, switchTo: rawSwitch, signIn, signOut, deleteAccount } = useAppState();
   // Pass-and-play: cover the screen between turns so nobody sees the other's swipes.
   const [handoff, setHandoff] = useState<string | null>(null);
   const switchTo = (uid: string) => {
@@ -75,7 +75,7 @@ export function App() {
   let screen;
   if (loading) screen = <div className="screen" aria-busy="true" />;
   else if (!props) screen = <Welcome signIn={signIn} />;
-  else if (profile) screen = <Profile {...props} meta={meta} signIn={signIn} signOut={async () => { setProfile(false); await signOut(); }} onClose={() => setProfile(false)} />;
+  else if (profile) screen = <Profile {...props} meta={meta} signIn={signIn} signOut={async () => { setProfile(false); await signOut(); }} deleteAccount={async (pw) => { await deleteAccount(pw); setProfile(false); }} onClose={() => setProfile(false)} />;
   else if (!props.state.partner) screen = <PairUp {...props} />;
   else if (rating) screen = <Rate {...props} booking={rating} onDone={() => setRating(null)} />;
   else if (inSession && session!.status === 'swiping') screen = <Swipe {...props} />;

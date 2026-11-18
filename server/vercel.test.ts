@@ -84,6 +84,22 @@ describe.skipIf(!enabled)('Vercel entry on Postgres', () => {
     expect((await runApi('POST', '/me/account', b, { email: 'pat@example.com', password: 'longenough' }, pool)).status).toBe(409);
   });
 
+  it('counts rate limits in Postgres and deletes accounts with their old sessions', async () => {
+    const su = await call('POST', '/auth/signup', null, { name: 'Ana', email: 'ana@example.com', password: 'longenough' });
+    await call('POST', '/couple/demo', su.token);
+    const st = await call('POST', '/sessions', su.token, { mode: 'dinner', filters: { area: 'west-village', radiusMi: 2 } });
+    const coupleId = st.couple.id;
+
+    const codes: number[] = [];
+    for (let i = 0; i < 9; i++) codes.push((await runApi('POST', '/auth/login', null, { email: 'ana@example.com', password: 'nope-nope' }, pool, `1.2.3.${i}`)).status);
+    expect(codes.at(-1)).toBe(429);
+
+    const del = await runApi('POST', '/me/delete', su.token, { password: 'longenough' }, pool);
+    expect(del.status).toBe(200);
+    const left = await pool.query(`SELECT kind FROM dn_docs WHERE id = $1 OR couple_id = $2`, [su.me.id, coupleId]);
+    expect(left.rows).toEqual([]);
+  });
+
   it('runs the demo partner synchronously', async () => {
     const a = (await call('POST', '/users', null, { name: 'Jo' })).me.id;
     await call('POST', '/couple/demo', a);

@@ -47,11 +47,15 @@
 - [x] ✅ Cost controls: 1 search per deck (cached 10 min), suggestions billed per typing session, photo links cached for an hour
 - [ ] 🙋 Still do steps 6–7 of the key setup if you haven't: restrict the key to Places API (New), set a budget alert and a daily quota
 - [ ] 🙋 Confirm the beta city. Addresses and "use my location" work anywhere once the key is in, but the quick-pick neighborhoods are New York only.
-- [ ] 🙋 Pick a host for the server (Render, Fly or Railway) and create an account.
-- [ ] 🤖 Deploy the server with Postgres so two phones can pair and match live, and point the iOS app at it (`API_URL=… npm run ios:online`). The on-device mode stays for the demo and same-phone play.
+- [x] ✅ Host: Vercel (project `date-night`) + Neon Postgres (`datenight`, us-east-2). Live at https://date-night-swart.vercel.app
+- [x] ✅ Server deployed with Postgres; `npm run ios:prod` builds the iOS app against it (photos load from the API host).
 - [ ] 🤖 Push notifications for linked phones ("Sam finished swiping", "It's a match!") so async swiping works when the app is closed. Needs the Apple Developer account.
-- [ ] 🤖 Phone sign-in with a texted code, replacing device-only identity.
-- [ ] 🤖 Error tracking, plus launch metrics: time to match, match rate, handoff tap-through, "we booked it" rate, rating rate.
+- [x] ✅ Email + password accounts, profile page, log out, change password, delete account (Apple 5.1.1(v)), 90-day sign-in tokens, rate limits, security headers.
+- [ ] 🙋 Password reset needs an email service (Resend or Postmark). Create the account and add its key; 🤖 then builds the reset flow.
+- [x] ✅ Crash reports from the app + server errors in Vercel logs; `/api/health` for uptime checks; CI on every push.
+- [ ] 🙋 Alerts: connect Sentry (or a Vercel log drain) and an uptime monitor on `/api/health`.
+- [ ] 🙋 Upgrade Vercel to **Pro** (Hobby is non-commercial only) and Neon to a paid plan (free tier restores only the last 6 hours).
+- [ ] 🤖 Launch metrics: time to match, match rate, handoff tap-through, "we booked it" rate, rating rate.
 
 ## Fri, Nov 20: ship the beta
 

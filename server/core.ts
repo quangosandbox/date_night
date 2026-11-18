@@ -20,6 +20,32 @@ export class HttpError extends Error {
   }
 }
 
+// ---------- rate limits ----------
+/** Counts hits per key in a fixed window; returns false once `max` is exceeded. */
+export interface Limiter {
+  hit(key: string, max: number, windowSec: number): Promise<boolean>;
+}
+const memoryHits = new Map<string, { count: number; reset: number }>();
+let limiter: Limiter = {
+  async hit(key, max, windowSec) {
+    const now = Date.now();
+    const cur = memoryHits.get(key);
+    if (!cur || cur.reset <= now) {
+      if (memoryHits.size > 50_000) memoryHits.clear();
+      memoryHits.set(key, { count: 1, reset: now + windowSec * 1000 });
+      return true;
+    }
+    cur.count++;
+    return cur.count <= max;
+  },
+};
+/** Serverless hosting shares counts through the database instead (see server/vercel.ts). */
+export const setLimiter = (l: Limiter) => (limiter = l);
+
+async function limit(key: string, max: number, windowSec: number) {
+  if (!(await limiter.hit(key, max, windowSec))) throw new HttpError(429, 'Too many attempts. Please wait a few minutes and try again.');
+}
+
 // ---------- realtime ----------
 type Listener = () => void;
 const listeners = new Map<string, Set<Listener>>();
@@ -221,7 +247,7 @@ function rateAs(user: User, couple: StoredCouple, b: Booking, verdict: Verdict, 
 }
 
 // ---------- routes ----------
-type Ctx = { user: StoredUser; body: any; params: string[]; query: URLSearchParams; credential: string | null };
+type Ctx = { user: StoredUser; body: any; params: string[]; query: URLSearchParams; credential: string | null; ip: string };
 type Handler = (ctx: Ctx) => Promise<unknown> | unknown;
 const routes: [string, RegExp, Handler, boolean][] = []; // method, path, handler, needs auth
 const route = (method: string, path: RegExp, h: Handler, authed = true) => routes.push([method, path, h, authed]);
@@ -277,7 +303,8 @@ async function signedIn(user: StoredUser): Promise<AppState> {
 route(
   'POST',
   /^\/auth\/signup$/,
-  async ({ body }) => {
+  async ({ body, ip }) => {
+    await limit(`signup:ip:${ip}`, 10, 3600);
     const email = normalizeEmail(body?.email);
     if (findByEmail(email)) throw new HttpError(409, 'An account with that email already exists. Try logging in.');
     const problem = validateCredentials(email, body?.password) ?? (String(body?.name ?? '').trim() ? null : 'What should we call you?');
@@ -292,8 +319,11 @@ route(
 route(
   'POST',
   /^\/auth\/login$/,
-  async ({ body }) => {
-    const user = findByEmail(normalizeEmail(body?.email));
+  async ({ body, ip }) => {
+    const email = normalizeEmail(body?.email);
+    await limit(`login:ip:${ip}`, 30, 900);
+    await limit(`login:email:${email}`, 8, 900);
+    const user = findByEmail(email);
     const ok = user?.auth && typeof body?.password === 'string' && (await verifyPassword(body.password, user.auth));
     if (!user || !ok) throw new HttpError(401, "That email and password don't match.");
     return signedIn(user);
@@ -309,6 +339,7 @@ route('POST', /^\/auth\/logout$/, async ({ user, credential }) => {
 
 /** A guest saves their profile as an account (email + password). */
 route('POST', /^\/me\/account$/, async ({ user, body }) => {
+  await limit(`account:${user.id}`, 10, 3600);
   if (user.isBot) throw new HttpError(400, 'The demo partner can’t have an account.');
   if (user.auth) throw new HttpError(409, 'You already have an account.');
   await setCredentials(user, body);
@@ -317,6 +348,7 @@ route('POST', /^\/me\/account$/, async ({ user, body }) => {
 
 /** Change password (requires the current one); keeps this device signed in, signs out the rest. */
 route('POST', /^\/me\/password$/, async ({ user, body }) => {
+  await limit(`password:${user.id}`, 10, 3600);
   if (!user.auth) throw new HttpError(400, 'Save your account first.');
   if (typeof body?.current !== 'string' || !(await verifyPassword(body.current, user.auth))) throw new HttpError(401, 'Your current password is incorrect.');
   await setCredentials(user, { email: user.email, password: body?.password });
@@ -378,20 +410,55 @@ route('POST', /^\/couple\/local-partner$/, ({ user, body }) => {
   return addPartner(user, { name, phone: '' });
 });
 
-route('POST', /^\/couple\/leave$/, ({ user }) => {
+/** Dissolves the couple: both become unpaired, the demo partner goes, and so do shared sessions. */
+function leaveCouple(user: User) {
   const c = coupleOf(user);
-  if (c) {
-    for (const m of c.memberIds) {
-      const u = db.users[m];
-      if (u) u.coupleId = null;
-      if (u?.isBot) delete db.users[m];
-    }
-    delete db.couples[c.id];
-    notify(c.memberIds);
+  if (!c) return;
+  for (const m of c.memberIds) {
+    const u = db.users[m];
+    if (u) u.coupleId = null;
+    if (u?.isBot) delete db.users[m];
   }
+  for (const s of Object.values(db.sessions)) if (s.coupleId === c.id) delete db.sessions[s.id];
+  delete db.couples[c.id];
+  notify(c.memberIds);
+}
+
+route('POST', /^\/couple\/leave$/, ({ user }) => {
+  leaveCouple(user);
   save();
   return stateFor(user);
 });
+
+/**
+ * Delete my account and everything tied to it (App Store guideline 5.1.1(v)).
+ * Account holders confirm with their password. Your partner keeps their own account.
+ */
+route('POST', /^\/me\/delete$/, async ({ user, body }) => {
+  await limit(`delete:${user.id}`, 10, 3600);
+  if (user.auth && (typeof body?.password !== 'string' || !(await verifyPassword(body.password, user.auth))))
+    throw new HttpError(401, 'That password is incorrect.');
+  leaveCouple(user);
+  delete db.users[user.id];
+  save();
+  return { deleted: true };
+});
+
+/** Crash reports from the app, written to the server log (searchable in Vercel → Logs). */
+route(
+  'POST',
+  /^\/report$/,
+  async ({ body, ip, user }) => {
+    await limit(`report:${ip}`, 30, 600);
+    const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : undefined);
+    console.error(
+      '[client-error]',
+      JSON.stringify({ message: clip(body?.message, 500), stack: clip(body?.stack, 4000), where: clip(body?.where, 200), url: clip(body?.url, 300), ua: clip(body?.ua, 300), user: user?.id }),
+    );
+    return { ok: true };
+  },
+  false,
+);
 
 route('POST', /^\/sessions$/, async ({ user, body }) => {
   const couple = coupleOf(user);
@@ -548,7 +615,7 @@ route('POST', /^\/ratings$/, ({ user, body }) => {
 
 // ---------- dispatcher ----------
 /** `credential` is "<userId>.<token>" for account holders, or a bare user id for guests. */
-export async function handle(method: string, path: string, credential: string | null, body: unknown): Promise<{ status: number; body: unknown }> {
+export async function handle(method: string, path: string, credential: string | null, body: unknown, meta: { ip?: string } = {}): Promise<{ status: number; body: unknown }> {
   const [clean, qs] = path.split('?');
   const query = new URLSearchParams(qs ?? '');
   for (const [m, re, h, authed] of routes) {
@@ -558,7 +625,7 @@ export async function handle(method: string, path: string, credential: string | 
     const user = await authenticate(db.users, credential);
     if (authed && !user) return { status: 401, body: { error: 'Please log in again.' } };
     try {
-      return { status: 200, body: await h({ user: user!, body: body as never, params: match.slice(1), query, credential }) };
+      return { status: 200, body: await h({ user: user!, body: body as never, params: match.slice(1), query, credential, ip: meta.ip || 'unknown' }) };
     } catch (e) {
       if (e instanceof HttpError) return { status: e.status, body: { error: e.message } };
       console.error(e);

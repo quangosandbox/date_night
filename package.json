@@ -15,7 +15,8 @@
     "ios:sync": "npm run build:app && npx cap sync ios",
     "build:share": "vite build -c vite.artifact.config.ts",
     "ios:online": "VITE_API_URL=$API_URL npm run build:app && npx cap sync ios && npx cap open ios",
-    "build:vercel": "node scripts/build-vercel.mjs"
+    "build:vercel": "node scripts/build-vercel.mjs",
+    "ios:prod": "API_URL=https://date-night-swart.vercel.app npm run ios:online"
   },
   "dependencies": {
     "@capacitor/core": "^8.6.2",

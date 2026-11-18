@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { TOKEN_TTL_MS } from './auth.ts';
 import { handle } from './core.ts';
 import { db } from './store.ts';
 
-const call = async (method: string, path: string, credential: string | null, body?: unknown) => handle(method, path, credential, body) as Promise<{ status: number; body: any }>;
+let ipSeq = 0;
+const ip = () => `10.0.0.${++ipSeq}`; // each test gets its own address so rate limits don't collide
+let testIp = ip();
+const call = async (method: string, path: string, credential: string | null, body?: unknown) => handle(method, path, credential, body, { ip: testIp }) as Promise<{ status: number; body: any }>;
 const ok = async (method: string, path: string, credential: string | null, body?: unknown) => {
   const r = await call(method, path, credential, body);
   if (r.status !== 200) throw new Error(`${path}: ${r.status} ${JSON.stringify(r.body)}`);
@@ -71,5 +75,71 @@ describe('accounts', () => {
     const stored = JSON.stringify(db.users[s.me.id]);
     expect(stored).not.toContain('plaintext-secret');
     expect(stored).not.toContain(s.token.split('.')[1]);
+  });
+
+  it('deletes an account, its couple and shared sessions, but not the partner', async () => {
+    testIp = ip();
+    const a = await ok('POST', '/auth/signup', null, { name: 'Del', email: email('del'), password: 'longenough' });
+    const code = (await ok('POST', '/couple', a.token)).couple.inviteCode;
+    const b = (await ok('POST', '/users', null, { name: 'Bea' })).me.id;
+    await ok('POST', '/couple/join', b, { code });
+    const st = await ok('POST', '/sessions', a.token, { mode: 'dinner', filters: { area: 'west-village', radiusMi: 2 } });
+    const coupleId = st.couple.id;
+
+    expect((await call('POST', '/me/delete', a.token, { password: 'wrong-password' })).status).toBe(401);
+    expect(await ok('POST', '/me/delete', a.token, { password: 'longenough' })).toEqual({ deleted: true });
+
+    expect(db.users[a.me.id]).toBeUndefined();
+    expect(db.couples[coupleId]).toBeUndefined();
+    expect(Object.values(db.sessions).some((s) => s.coupleId === coupleId)).toBe(false);
+    expect((await call('GET', '/state', a.token)).status).toBe(401);
+    const bea = await ok('GET', '/state', b);
+    expect(bea.partner).toBeNull(); // partner keeps their profile, now unpaired
+    expect((await call('POST', '/auth/login', null, { email: a.me.email, password: 'longenough' })).status).toBe(401);
+  });
+
+  it('lets a guest delete themselves without a password', async () => {
+    testIp = ip();
+    const g = (await ok('POST', '/users', null, { name: 'Gia' })).me.id;
+    await ok('POST', '/couple/demo', g);
+    await ok('POST', '/me/delete', g, {});
+    expect(db.users[g]).toBeUndefined();
+  });
+
+  it('rate-limits password guessing per email', async () => {
+    testIp = ip();
+    const addr = email('rl');
+    await ok('POST', '/auth/signup', null, { name: 'Rl', email: addr, password: 'longenough' });
+    const codes: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      testIp = ip(); // a different address each time: the per-email limit still applies
+      codes.push((await call('POST', '/auth/login', null, { email: addr, password: `guess-${i}-guess` })).status);
+    }
+    expect(codes.slice(0, 8).every((c) => c === 401)).toBe(true);
+    expect(codes.slice(8)).toEqual([429, 429]);
+    expect((await call('POST', '/auth/login', null, { email: addr, password: 'longenough' })).status).toBe(429); // even the right one, until the window passes
+  });
+
+  it('expires sign-in tokens after 90 days', async () => {
+    testIp = ip();
+    const a = await ok('POST', '/auth/signup', null, { name: 'Exp', email: email('exp'), password: 'longenough' });
+    vi.useFakeTimers({ now: Date.now() + TOKEN_TTL_MS - 60_000, toFake: ['Date'] });
+    try {
+      expect((await call('GET', '/state', a.token)).status).toBe(200);
+      vi.setSystemTime(Date.now() + 120_000);
+      expect((await call('GET', '/state', a.token)).status).toBe(401);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('accepts crash reports without an account', async () => {
+    testIp = ip();
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await call('POST', '/report', null, { message: 'boom', stack: 'x'.repeat(10_000) })).status).toBe(200);
+    const logged = String(spy.mock.calls[0]?.[1] ?? '');
+    spy.mockRestore();
+    expect(logged).toContain('boom');
+    expect(logged.length).toBeLessThan(6000);
   });
 });

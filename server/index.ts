@@ -33,6 +33,8 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/api/health', (_req, res) => res.set('Cache-Control', 'no-store').json({ ok: true, at: new Date().toISOString() }));
+
 app.get('/api/events', async (req, res) => {
   // EventSource can't send headers, so the credential comes in the query string.
   const uid = await listenerId(String(req.query.user ?? ''));
@@ -69,7 +71,7 @@ app.get('/api/places-photo', async (req, res) => {
 });
 
 app.all(/^\/api\/.*/, async (req, res) => {
-  const result = await handle(req.method, req.url.replace(/^\/api/, ''), req.header('x-user-id') ?? null, req.body);
+  const result = await handle(req.method, req.url.replace(/^\/api/, ''), req.header('x-user-id') ?? null, req.body, { ip: req.ip });
   res.status(result.status).json(result.body);
 });
 

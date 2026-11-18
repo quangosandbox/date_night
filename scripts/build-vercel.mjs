@@ -39,6 +39,32 @@ fs.writeFileSync(
     {
       version: 3,
       routes: [
+        // Security headers on every response. The app loads no third-party scripts; images
+        // come from Google/Unsplash over https; all API calls are same-origin.
+        {
+          src: '/(.*)',
+          headers: {
+            'Content-Security-Policy': [
+              "default-src 'self'",
+              "script-src 'self'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data:",
+              "connect-src 'self'",
+              "manifest-src 'self'",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "frame-ancestors 'none'",
+            ].join('; '),
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+            'Referrer-Policy': 'strict-origin-when-cross-origin',
+            'Permissions-Policy': 'geolocation=(self), camera=(), microphone=(), payment=()',
+            'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
+          },
+          continue: true,
+        },
         { src: '^/api(/.*)?$', dest: '/api' },
         { handle: 'filesystem' },
         { src: '/.*', dest: '/index.html' },

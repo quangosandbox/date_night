@@ -5,7 +5,7 @@ import { api, LOCAL, type Meta } from '../api.ts';
 import { Plate } from '../components/Brand.tsx';
 import { HomeButton } from '../components/HomeButton.tsx';
 
-type Props = ScreenProps & { meta: Meta | null; signIn: (s: AppState) => void; signOut: () => void; onClose: () => void };
+type Props = ScreenProps & { meta: Meta | null; signIn: (s: AppState) => void; signOut: () => void; deleteAccount: (password?: string) => Promise<void>; onClose: () => void };
 
 function useForm() {
   const [busy, setBusy] = useState(false);
@@ -37,7 +37,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export function Profile({ state, apply, meta, signIn, signOut, onClose }: Props) {
+export function Profile({ state, apply, meta, signIn, signOut, deleteAccount, onClose }: Props) {
   const { me, partner } = state;
   const movies = meta?.modes.includes('movie');
 
@@ -73,6 +73,15 @@ export function Profile({ state, apply, meta, signIn, signOut, onClose }: Props)
     apply(await api('/couple/leave', {}));
     setArmed(false);
   }
+
+  // Delete account: opens a confirmation card; account holders also re-enter their password.
+  const [deleting, setDeleting] = useState(false);
+  const [delPassword, setDelPassword] = useState('');
+  const removal = useForm();
+  const confirmDelete = (e: FormEvent) => {
+    e.preventDefault();
+    removal.run(() => deleteAccount(me.hasAccount ? delPassword : undefined));
+  };
 
   const top = state.myRanking.slice(0, 3);
 
@@ -186,7 +195,31 @@ export function Profile({ state, apply, meta, signIn, signOut, onClose }: Props)
           </button>
         )}
         {!LOCAL && me.hasAccount && <button className="link-btn" onClick={signOut}>Log out</button>}
+        {!deleting && (
+          <button className="link-btn" style={{ color: 'var(--tobiko-ink)' }} onClick={() => setDeleting(true)}>
+            Delete account
+          </button>
+        )}
       </div>
+
+      {deleting && (
+        <Card title="Delete your account?">
+          <form className="stack" style={{ gap: 12 }} onSubmit={confirmDelete}>
+            <p className="meta-sm" style={{ margin: 0 }}>
+              This permanently deletes your profile{partner ? `, unpairs you from ${partner.name}` : ''} and removes your shared dates, swipes and ratings. {partner && !partner.isBot ? `${partner.name} keeps their own account. ` : ''}It can't be undone.
+            </p>
+            {me.hasAccount && (
+              <div className="field">
+                <label htmlFor="d-pass">Confirm with your password</label>
+                <input id="d-pass" className="input" type="password" autoComplete="current-password" value={delPassword} onChange={(e) => { setDelPassword(e.target.value); removal.clear(); }} />
+              </div>
+            )}
+            {removal.status}
+            <button className="btn btn-red btn-block" disabled={removal.busy || (me.hasAccount && !delPassword)}>Delete my account for good</button>
+            <button type="button" className="link-btn" onClick={() => { setDeleting(false); setDelPassword(''); removal.clear(); }}>Keep my account</button>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

@@ -48,6 +48,20 @@ the same on-device build in Safari; add it to your Home Screen for an app-like i
   ```
   Both phones install that build, one shares the invite code, the other joins. Matches show up on both phones instantly while the app is open. Alerts when the app is closed need push notifications (on the checklist).
 
+## Build for TestFlight / the App Store
+This build talks to the live server, so people sign up with email and password, pair on two phones, and see real
+Google restaurants:
+```bash
+npm run ios:prod     # = API_URL=https://date-night-swart.vercel.app npm run ios:online
+```
+Then in Xcode: pick **Any iOS Device (arm64)** → Product → **Archive** → Distribute App → App Store Connect.
+- Change the API URL in `package.json` (`ios:prod`) when you move to your own domain.
+- `ITSAppUsesNonExemptEncryption` is set to `false` in `Info.plist` (the app only uses standard HTTPS), so uploads
+  skip the export-compliance question.
+- App Review needs a **demo login**: create an account on the live site, pair it with the demo partner, and put the
+  email and password in App Store Connect → App Review Information.
+- Account deletion is in Profile → Delete account (required by App Review guideline 5.1.1(v)).
+
 ## Two phones, live (web)
 For two phones in real time, run the server (`npm run build && npm start` on a computer) and open
 `http://<computer-ip>:8787` on both phones (same Wi-Fi). The server build supports invite codes,

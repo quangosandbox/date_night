@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Option } from '../../../shared/types.ts';
 import { CardArt } from './CardArt.tsx';
+import { assetUrl } from '../api.ts';
 
 export function Chopsticks({ size = 28, color = 'currentColor', tip = '#E8473F' }: { size?: number; color?: string; tip?: string }) {
   return (
@@ -73,7 +74,7 @@ export function Photo({ option, index = 0, className, credit = true, poster }: {
   const label = photo.source === 'Sample' ? `sample photo${photo.attribution ? ` · ${photo.attribution}` : ''}` : `photo · ${photo.attribution ?? photo.source}`;
   return (
     <div className={`photo ${className ?? ''}`}>
-      <img src={photo.url} alt="" loading={index === 0 ? 'eager' : 'lazy'} onError={() => setFailed(true)} draggable={false} />
+      <img src={assetUrl(photo.url)} alt="" loading={index === 0 ? 'eager' : 'lazy'} onError={() => setFailed(true)} draggable={false} />
       {credit && (
         <span className="credit">
           {photo.attributionUrl ? <a href={photo.attributionUrl} target="_blank" rel="noreferrer">{label}</a> : label}
@@ -90,7 +91,7 @@ export function Plate({ option, photo, art, seed = 'x', size = 52 }: { option?: 
   return (
     <span className="plate" style={{ width: size, height: size }} aria-hidden="true">
       {url && !failed ? (
-        <span><img src={url} alt="" onError={() => setFailed(true)} draggable={false} /></span>
+        <span><img src={assetUrl(url)} alt="" onError={() => setFailed(true)} draggable={false} /></span>
       ) : option ? (
         <span><CardArt option={option} className="fill" /></span>
       ) : (
