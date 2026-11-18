@@ -13,6 +13,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    allowedHosts: true, // let the app's preview pane (and phones on your Wi-Fi) reach the dev server
     proxy: { '/api': { target: 'http://localhost:8787', changeOrigin: true } },
   },
 });
