@@ -1,5 +1,8 @@
-// Environment-agnostic store. The Node server persists it to data/db.json; the on-device
-// build persists it to localStorage. Swap for Postgres/Redis in production.
+// Environment-agnostic store.
+//  - Node server: one in-memory DB persisted to data/db.json.
+//  - On-device build: one in-memory DB persisted to localStorage.
+//  - Vercel (serverless): each request gets its own DB loaded from Postgres (see server/vercel.ts),
+//    selected through a scope resolver so concurrent requests never share state.
 import type { Booking, Couple, Rating, User } from '../shared/types.ts';
 import type { Session } from './engine.ts';
 
@@ -18,21 +21,38 @@ export interface DB {
   sessions: Record<string, Session>;
 }
 
-export const db: DB = { users: {}, couples: {}, sessions: {} };
+const globalDb: DB = { users: {}, couples: {}, sessions: {} };
+let scoped: (() => DB | undefined) | null = null;
+
+/** Per-request DB (serverless). Falls back to the process-wide DB everywhere else. */
+export function setScopeResolver(fn: () => DB | undefined) {
+  scoped = fn;
+}
+
+const current = (): DB => scoped?.() ?? globalDb;
+
+export const db: DB = new Proxy({} as DB, {
+  get: (_t, key: keyof DB) => current()[key],
+  set: (_t, key: keyof DB, value) => {
+    current()[key] = value;
+    return true;
+  },
+});
 
 let saver: (db: DB) => void = () => {};
 let pending = false;
 
 export function configureStore(initial: Partial<DB> | null, persist: (db: DB) => void) {
-  if (initial) Object.assign(db, { users: {}, couples: {}, sessions: {}, ...initial });
+  if (initial) Object.assign(globalDb, { users: {}, couples: {}, sessions: {}, ...initial });
   saver = persist;
 }
 
 export function save() {
+  if (scoped?.()) return; // request-scoped: persisted when the request finishes
   if (pending) return;
   pending = true;
   setTimeout(() => {
     pending = false;
-    saver(db);
+    saver(globalDb);
   }, 150);
 }

@@ -116,8 +116,21 @@ export function useAppState() {
     return () => off();
   }, [userId, refresh]);
 
+  // Serverless hosting (Vercel) can't hold a live connection open, so poll instead.
+  const poll = state?.realtime === 'poll';
   useEffect(() => {
-    if (!userId || LOCAL) return;
+    if (!userId || LOCAL || !poll) return;
+    const t = setInterval(() => document.visibilityState === 'visible' && refresh(), 2500);
+    const onVis = () => document.visibilityState === 'visible' && refresh();
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [userId, poll, refresh]);
+
+  useEffect(() => {
+    if (!userId || LOCAL || poll) return;
     let es: EventSource | null = null;
     let retry: ReturnType<typeof setTimeout>;
     const connect = () => {
@@ -137,7 +150,7 @@ export function useAppState() {
       clearTimeout(retry);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [userId, refresh]);
+  }, [userId, poll, refresh]);
 
   /** Pass-and-play: hand the phone to your partner. */
   const switchTo = useCallback(

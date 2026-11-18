@@ -222,6 +222,7 @@ export interface AppState {
   myRanking: RankedEntry[]; // your personal ranked list (for Beli-style comparisons)
   taste: Taste;
   localMode?: boolean; // running fully on-device (no server)
+  realtime?: 'sse' | 'poll'; // how the client should listen for partner updates
 }
 
 export interface Area {

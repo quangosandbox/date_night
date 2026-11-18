@@ -124,6 +124,7 @@ function stateFor(u: User): AppState {
     ourList,
     myRanking,
     taste: summarizeTaste(tasteFor(couple)),
+    realtime: typeof process !== 'undefined' && process.env?.DN_REALTIME === 'poll' ? 'poll' : 'sse',
   };
 }
 

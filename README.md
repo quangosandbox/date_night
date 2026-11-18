@@ -4,6 +4,7 @@ Two people swipe on restaurants or movies that are **actually bookable in the ti
 
 - **Product spec & logic flow:** [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md)
 - **Launch checklist & what's next:** [`docs/LAUNCH_CHECKLIST.md`](docs/LAUNCH_CHECKLIST.md)
+- **Deploy (Vercel + Neon):** [`docs/DEPLOY.md`](docs/DEPLOY.md)
 - **Install on your iPhone:** [`docs/IOS.md`](docs/IOS.md) — `npm run ios` (needs a Mac with Xcode)
 
 ## Run it
