@@ -46,6 +46,7 @@ export interface Slot {
 
 export interface Review {
   author: string;
+  authorUrl?: string;
   stars: number;
   text: string;
   when: string;
@@ -66,8 +67,17 @@ export interface Link {
 
 export interface Photo {
   url: string;
-  source: string; // "Google", "Resy", "OpenTable", "Sample"
-  attribution?: string;
+  source: string; // "Google", "Sample"
+  attribution?: string; // photographer / author, shown with the photo (required for Google photos)
+  attributionUrl?: string;
+}
+
+/** Where to go to actually reserve when the app can't book directly (Google-only beta). */
+export interface Handoff {
+  mapsUrl?: string; // the place's Google Maps page — shows "Reserve a table" where available
+  website?: string;
+  phone?: string;
+  reservable?: boolean; // Google's "takes reservations" flag
 }
 
 export interface Option {
@@ -89,6 +99,8 @@ export interface Option {
   links: Link[];
   photos: Photo[]; // listing photos (Google / Resy / OpenTable); empty → generative art
   why?: string; // learned-taste reason, e.g. "Because you loved Baan Noi"
+  handoff?: Handoff; // present when booking happens outside the app
+  dataAttribution?: string; // e.g. "Google Maps" — shown on the card when data comes from a provider
   art: { bg: string; fg: string; motif: string }; // generative card art
   badges: string[]; // "On both your watchlists"
   slots: Slot[];
@@ -108,6 +120,7 @@ export interface Booking {
   address?: string;
   option?: Option; // snapshot for the post-date review
   demo?: boolean; // true when no real provider took the reservation
+  selfReported?: boolean; // you booked it yourself via the handoff and told us the time
 }
 
 export type Verdict = 'loved' | 'fine' | 'meh';

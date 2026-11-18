@@ -48,6 +48,9 @@ export interface Meta {
   cuisines: string[];
   genres: string[];
   formats: string[];
+  modes: ('dinner' | 'movie')[];
+  bookingMode: 'handoff' | 'auto';
+  liveData: boolean; // real Google Places data (vs. the demo venues)
 }
 
 /** App state with realtime updates over Server-Sent Events. */

@@ -18,6 +18,17 @@ export interface Providers {
 const env = typeof process !== 'undefined' ? process.env : ({} as Record<string, string | undefined>);
 export const GOOGLE_KEY = env.GOOGLE_PLACES_API_KEY;
 
+/**
+ * How a match turns into a reservation.
+ *  - 'handoff' (default): no booking partner yet — after a match you reserve on Google Maps /
+ *    the restaurant's site / by phone, then tell the app the time.
+ *  - 'auto': the demo reservation providers book instantly (for when Resy/OpenTable land).
+ */
+export const BOOKING_MODE: 'handoff' | 'auto' = env.BOOKING_MODE === 'auto' ? 'auto' : 'handoff';
+
+/** Which date types are live. Dinner only for the beta; set DATE_NIGHT_MODES=dinner,movie to bring movies back. */
+export const MODES = (env.DATE_NIGHT_MODES ?? 'dinner').split(',').filter((m) => m === 'dinner' || m === 'movie') as ('dinner' | 'movie')[];
+
 export const providers: Providers = {
   // Real Google discovery (photos, ratings, reviews) when a key is configured; availability and
   // booking stay on the demo providers until the Resy/OpenTable partnerships are in place.

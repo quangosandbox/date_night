@@ -175,7 +175,7 @@ export async function bookMatch(
         partySize: s.filters.partySize,
         date: s.filters.date,
         address: option.address,
-        option,
+        option: snapshot(option),
         demo: res.demo,
       };
       return 'booked';
@@ -190,6 +190,47 @@ export async function bookMatch(
   s.bookingError = `${option.title} just filled up. Keep swiping — we dropped it from the deck.`;
   s.status = s.deck.length === 0 || isExhausted(s) ? 'exhausted' : 'swiping';
   return 'fell_through';
+}
+
+/** Strip provider content we shouldn't keep long-term (Google terms) from a saved booking. */
+function snapshot(option: Option): Option {
+  if (!option.dataAttribution) return option;
+  return { ...option, reviews: [], blurb: '', highlights: [] };
+}
+
+/** Handoff flow: you reserved it yourself (Google Maps / website / phone) and tell us the time. */
+export function recordSelfBooking(s: Session, userId: string, time: string, now = new Date()): boolean {
+  if (s.status !== 'matched' || !s.match || s.booking) return false;
+  const option = s.deck.find((o) => o.id === s.match!.optionId);
+  if (!option || !/^\d{2}:\d{2}$/.test(time)) return false;
+  s.status = 'booked';
+  s.bookingError = null;
+  s.booking = {
+    optionId: option.id,
+    title: option.title,
+    slot: { id: `self:${option.id}:${s.filters.date}:${time}`, time, provider: 'handoff' },
+    provider: 'handoff',
+    confirmation: `DN-${now.getTime().toString(36).toUpperCase().slice(-6)}`,
+    bookedBy: userId,
+    bookedAt: now.toISOString(),
+    partySize: s.filters.partySize,
+    date: s.filters.date,
+    address: option.address,
+    option: snapshot(option),
+    selfReported: true,
+  };
+  return true;
+}
+
+/** Handoff flow: no table to be had. Drop it and keep swiping. */
+export function noTable(s: Session): boolean {
+  if (s.status !== 'matched' || !s.match) return false;
+  const option = s.deck.find((o) => o.id === s.match!.optionId);
+  s.deck = s.deck.filter((o) => o.id !== s.match!.optionId);
+  s.match = null;
+  s.bookingError = `No table at ${option?.title ?? 'that one'}. Keep swiping — it's out of the deck.`;
+  s.status = s.deck.length === 0 || isExhausted(s) ? 'exhausted' : 'swiping';
+  return true;
 }
 
 export function toView(s: Session, me: string): SessionView {

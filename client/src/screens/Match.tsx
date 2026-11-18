@@ -6,7 +6,7 @@ import { Photo } from '../components/Brand.tsx';
 import { Calendar, Check, Heart, Pin } from '../components/Icons.tsx';
 import { endSession } from './Home.tsx';
 
-const PROVIDER_NAMES: Record<string, string> = { resy: 'Resy', opentable: 'OpenTable', atom: 'Atom', fandango: 'Fandango' };
+const PROVIDER_NAMES: Record<string, string> = { resy: 'Resy', opentable: 'OpenTable', atom: 'Atom', fandango: 'Fandango', handoff: 'Google Maps' };
 
 export function Match({ state, apply }: ScreenProps) {
   const s = state.session!;
@@ -38,7 +38,26 @@ export function Match({ state, apply }: ScreenProps) {
   }
 
   const slot = booking?.slot ?? m.slot;
-  const autoBooking = !booking && s.filters.autoBook;
+  const handoff = !booking ? option.handoff : undefined;
+  const autoBooking = !booking && !handoff && s.filters.autoBook;
+  const [time, setTime] = useState(m.slot?.time ?? option.slots[0]?.time ?? '19:30');
+
+  async function bookedIt() {
+    setBusy(true);
+    try {
+      apply(await api(`/sessions/${s.id}/booked`, { time }));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function noTable() {
+    setBusy(true);
+    try {
+      apply(await api(`/sessions/${s.id}/no-table`, {}));
+    } finally {
+      setBusy(false);
+    }
+  }
   const isMovie = option.kind === 'movie';
   const place = isMovie ? slot?.label?.split(' · ')[0] ?? option.address : option.address;
   const directions = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${isMovie ? place : option.title} ${option.address ?? ''} New York`)}`;
@@ -79,7 +98,35 @@ export function Match({ state, apply }: ScreenProps) {
             </div>
           ))}
           {!booking && autoBooking && <div className="status-wait" role="status"><span className="spinner" /> Booking {slot ? fmtTime(slot.time) : 'your table'}…</div>}
-          {!booking && !autoBooking && (
+          {handoff && (
+            <div className="stack" style={{ gap: 12 }}>
+              <div className="eyebrow">1 · grab the table</div>
+              <div className="meta-sm" style={{ fontSize: 14, marginTop: -6 }}>
+                Aim for {fmtTime(time)}. {handoff.mapsUrl ? 'Google Maps shows a "Reserve a table" button when they take online bookings.' : ''}
+              </div>
+              <div className="handoff-actions">
+                {handoff.mapsUrl && <a className="btn btn-red" href={handoff.mapsUrl} target="_blank" rel="noreferrer"><Pin size={16} /> Reserve on Maps</a>}
+                {handoff.website && <a className="btn" href={handoff.website} target="_blank" rel="noreferrer">Website</a>}
+                {handoff.phone && <a className="btn" href={`tel:${handoff.phone.replace(/[^\d+]/g, '')}`}>Call</a>}
+              </div>
+              {handoff.phone && <div className="mono" style={{ fontSize: 13, userSelect: 'all' }}>{handoff.phone}</div>}
+              <div className="eyebrow" style={{ marginTop: 6 }}>2 · what time did you get?</div>
+              <div className="wrap" role="group" aria-label="Booked time">
+                {option.slots.map((sl) => (
+                  <button key={sl.id} className="slot-chip" style={{ background: sl.time === time ? undefined : 'var(--rice)' }} aria-pressed={sl.time === time} onClick={() => setTime(sl.time)}>{fmtTimeShort(sl.time)}</button>
+                ))}
+                <label className="slot-chip" style={{ background: 'var(--rice)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  other
+                  <input type="time" value={time} step={900} onChange={(e) => e.target.value && setTime(e.target.value)} aria-label="Other time" style={{ border: 0, background: 'transparent', fontFamily: 'var(--mono)', fontSize: 13, width: 92 }} />
+                </label>
+              </div>
+              <button className="btn btn-block" onClick={bookedIt} disabled={busy}>
+                {busy ? <span className="spinner" /> : <Check size={18} />} We're booked for {fmtTime(time)}
+              </button>
+              <button className="link-btn" onClick={noTable} disabled={busy}>No table? Drop it and keep swiping</button>
+            </div>
+          )}
+          {!booking && !handoff && !autoBooking && (
             <div className="stack" style={{ gap: 10 }}>
               <div className="eyebrow">pick a time</div>
               <div className="wrap" role="group" aria-label="Available times">
@@ -100,7 +147,7 @@ export function Match({ state, apply }: ScreenProps) {
             <div className="stub">
               <div className="stack" style={{ gap: 4 }}>
                 <span className="status-ok" role="status"><Check size={18} strokeWidth={2.6} /> Booked</span>
-                <span className="conf">{booking.confirmation}</span>
+                <span className="conf">{booking.selfReported ? `ref ${booking.confirmation}` : booking.confirmation}</span>
               </div>
               <div className="barcode" aria-hidden="true" />
             </div>

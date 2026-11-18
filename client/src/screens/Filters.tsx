@@ -177,13 +177,19 @@ export function Filters({ mode, meta, state, apply, onBack }: ScreenProps & { mo
             <button onClick={() => set('partySize', Math.min(8, f.partySize + 1))} aria-label="More">+</button>
           </div>
         </div>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <div>
-            <div id="autobook" style={{ fontWeight: 500 }}>Book automatically on a match</div>
-            <div className="meta-sm">{f.autoBook ? 'We grab the best time in your window.' : "You'll pick the time after you match."}</div>
+        {meta.bookingMode === 'auto' ? (
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <div>
+              <div id="autobook" style={{ fontWeight: 500 }}>Book automatically on a match</div>
+              <div className="meta-sm">{f.autoBook ? 'We grab the best time in your window.' : "You'll pick the time after you match."}</div>
+            </div>
+            <button className="toggle" role="switch" aria-checked={f.autoBook} aria-labelledby="autobook" onClick={() => set('autoBook', !f.autoBook)} />
           </div>
-          <button className="toggle" role="switch" aria-checked={f.autoBook} aria-labelledby="autobook" onClick={() => set('autoBook', !f.autoBook)} />
-        </div>
+        ) : (
+          <div className="meta-sm" style={{ lineHeight: 1.45 }}>
+            Only places that are open for dinner in your window and take reservations. When you match, we'll send you to reserve.
+          </div>
+        )}
       </section>
 
       <div className="spacer" />

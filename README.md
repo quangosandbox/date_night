@@ -42,7 +42,9 @@ client/ (React, mobile-first PWA)      server/ (Express)
 
 ## Integrations
 
-All data is currently from **mock adapters with fictional venues and films** (`server/providers/mock.ts`), with sample Unsplash photos standing in for listing photos. A real Google Places adapter (photos, ratings, reviews) is ready and switches on with `GOOGLE_PLACES_API_KEY`; until Resy/OpenTable partnerships exist, availability and booking stay in demo mode and confirmations are marked as demo. Real adapters implement the interfaces in `server/providers/types.ts` and are swapped in at `server/providers/index.ts`:
+All data is currently from **mock adapters with fictional venues and films** (`server/providers/mock.ts`), with sample Unsplash photos standing in for listing photos. A real Google Places adapter (photos, ratings, reviews, opening hours, "takes reservations") is ready and switches on with `GOOGLE_PLACES_API_KEY`.
+
+**Beta mode (default):** dinner only (`DATE_NIGHT_MODES=dinner`) and handoff booking (`BOOKING_MODE=handoff`). The deck shows places open for dinner in your window that take reservations; after a match you reserve on Google Maps, the website or by phone, then tell the app the time. `BOOKING_MODE=auto` turns the in-app booking flow back on for when Resy/OpenTable access exists. Real adapters implement the interfaces in `server/providers/types.ts` and are swapped in at `server/providers/index.ts`:
 
 | Service | Status / access |
 |---|---|

@@ -1,7 +1,8 @@
 // Provider adapter contracts. Each external service (Google Places, Resy, OpenTable,
 // Letterboxd, a showtime/ticketing provider) sits behind one of these so a real
 // integration can replace a mock without touching session or matching logic.
-import type { Area, Filters, Photo, Review, Slot } from '../../shared/types.ts';
+import type { Area, Filters, Handoff, Photo, Review, Slot } from '../../shared/types.ts';
+import type { Period } from '../hours.ts';
 
 export interface Venue {
   id: string;
@@ -20,6 +21,11 @@ export interface Venue {
   photos?: Photo[];
   reviewList?: Review[]; // real reviews (Google), when available
   website?: string;
+  /** Opening hours; when present the deck suggests times from them instead of live tables. */
+  hours?: Period[];
+  handoff?: Handoff;
+  servesDinner?: boolean;
+  dataAttribution?: string;
 }
 
 /** Discovery: who is out there (Google Places in production). */

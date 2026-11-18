@@ -31,7 +31,7 @@ export function Welcome({ apply }: { apply: (s: AppState) => void }) {
       <div className="stack" style={{ gap: 14, marginTop: 150, position: 'relative' }}>
         <div className="note" style={{ fontSize: 24 }}>for two people who say</div>
         <h1 className="h1" style={{ fontSize: 46, lineHeight: 0.98 }}>“I don't mind, <span className="hl">you pick.</span>”</h1>
-        <p className="lede">Swipe on spots that are actually open tonight. The first place you both say yes to gets booked. Then you rate the night — and the next deck gets smarter.</p>
+        <p className="lede">Swipe on real restaurants that are open in your window. The first place you both say yes to is the one — we send you straight to reserve it. Then you rate the night, and the next deck gets smarter.</p>
       </div>
 
       <div className="spacer" />

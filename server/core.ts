@@ -4,8 +4,8 @@
 import type { AppState, Booking, Filters, Mode, OurPlace, RankedEntry, Rating, User, Verdict, Vote } from '../shared/types.ts';
 import { scheduleBot, setBotHooks } from './bot.ts';
 import { buildDeck } from './deck.ts';
-import { acceptNearMiss, applyVote, bookMatch, isExhausted, letFateDecide, newSession, toView, type Session } from './engine.ts';
-import { providers } from './providers/index.ts';
+import { acceptNearMiss, applyVote, bookMatch, isExhausted, letFateDecide, newSession, noTable, recordSelfBooking, toView, type Session } from './engine.ts';
+import { BOOKING_MODE, GOOGLE_KEY, MODES, providers } from './providers/index.ts';
 import { AREAS, CUISINES, FORMATS, GENRES } from './providers/mockData.ts';
 import { db, save, type StoredCouple } from './store.ts';
 import { bucket, insertRanking, learnTaste, summarizeTaste, userScores, type TasteModel } from './taste.ts';
@@ -167,7 +167,8 @@ async function doBook(s: Session, actor: User, preferredSlotId?: string) {
 }
 
 async function runAutoBook(s: Session, actor: User) {
-  if (s.status === 'matched' && s.filters.autoBook) await doBook(s, actor);
+  // In handoff mode there's nothing to auto-book: the couple reserves via Google Maps / site / phone.
+  if (BOOKING_MODE === 'auto' && s.status === 'matched' && s.filters.autoBook) await doBook(s, actor);
 }
 
 setBotHooks({
@@ -213,7 +214,12 @@ type Handler = (ctx: Ctx) => Promise<unknown> | unknown;
 const routes: [string, RegExp, Handler, boolean][] = []; // method, path, handler, needs auth
 const route = (method: string, path: RegExp, h: Handler, authed = true) => routes.push([method, path, h, authed]);
 
-route('GET', /^\/meta$/, () => ({ areas: AREAS, cuisines: CUISINES, genres: GENRES, formats: FORMATS }), false);
+route(
+  'GET',
+  /^\/meta$/,
+  () => ({ areas: AREAS, cuisines: CUISINES, genres: GENRES, formats: FORMATS, modes: MODES, bookingMode: BOOKING_MODE, liveData: Boolean(GOOGLE_KEY) }),
+  false,
+);
 
 route(
   'POST',
@@ -304,6 +310,7 @@ route('POST', /^\/sessions$/, async ({ user, body }) => {
   const couple = coupleOf(user);
   if (!couple || couple.memberIds.length < 2) throw new HttpError(400, 'Pair with your partner first.');
   const mode: Mode = body?.mode === 'movie' ? 'movie' : 'dinner';
+  if (!MODES.includes(mode)) throw new HttpError(400, 'Movies are coming soon — dinner is live.');
   const filters = sanitizeFilters(body?.filters ?? {}, mode);
   const deck = await buildDeck(mode, filters, members(couple), providers, { taste: tasteFor(couple) });
   const s = newSession({ id: id('s'), coupleId: couple.id, mode, hostId: user.id, memberIds: couple.memberIds, filters, deck, createdAt: new Date().toISOString() });
@@ -346,6 +353,24 @@ route('POST', /^\/sessions\/([^/]+)\/book$/, async ({ user, body, params }) => {
   const s = sessionFor(user, params[0]);
   await doBook(s, user, body?.slotId);
   touch(s);
+  return stateFor(user);
+});
+
+/** Handoff: "We booked it for 8:00" — you reserved outside the app. */
+route('POST', /^\/sessions\/([^/]+)\/booked$/, ({ user, body, params }) => {
+  const s = sessionFor(user, params[0]);
+  if (!recordSelfBooking(s, user.id, String(body?.time ?? ''))) throw new HttpError(400, 'Pick the time you booked.');
+  db.couples[s.coupleId]?.history.unshift(s.booking!);
+  touch(s);
+  return stateFor(user);
+});
+
+/** Handoff: no table available — drop it and keep swiping. */
+route('POST', /^\/sessions\/([^/]+)\/no-table$/, ({ user, params }) => {
+  const s = sessionFor(user, params[0]);
+  noTable(s);
+  touch(s);
+  scheduleBot(s, s.memberIds.map((m) => db.users[m]));
   return stateFor(user);
 });
 

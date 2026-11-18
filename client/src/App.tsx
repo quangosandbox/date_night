@@ -58,7 +58,7 @@ export function App() {
   else if (props.state.session && (props.state.session.status === 'matched' || props.state.session.status === 'booked')) screen = <Match {...props} />;
   else if (props.state.session?.status === 'exhausted') screen = <NoMatch {...props} />;
   else if (planning && meta) screen = <Filters key={planning} mode={planning} meta={meta} {...props} onBack={() => setPlanning(null)} />;
-  else screen = <Home {...props} onPlan={setPlanning} onRate={setRating} />;
+  else screen = <Home {...props} meta={meta} onPlan={setPlanning} onRate={setRating} />;
 
   if (handoff)
     screen = (

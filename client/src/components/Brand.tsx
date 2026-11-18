@@ -70,11 +70,15 @@ export function Photo({ option, index = 0, className, credit = true, poster }: {
   const photo = option.photos[index];
   const [failed, setFailed] = useState(false);
   if (!photo || failed) return index === 0 ? <CardArt option={option} className={className} poster={poster} /> : null;
-  const label = photo.source === 'Sample' ? `sample photo${photo.attribution ? ` · ${photo.attribution}` : ''}` : `photo · ${photo.source}`;
+  const label = photo.source === 'Sample' ? `sample photo${photo.attribution ? ` · ${photo.attribution}` : ''}` : `photo · ${photo.attribution ?? photo.source}`;
   return (
     <div className={`photo ${className ?? ''}`}>
       <img src={photo.url} alt="" loading={index === 0 ? 'eager' : 'lazy'} onError={() => setFailed(true)} draggable={false} />
-      {credit && <span className="credit">{label}</span>}
+      {credit && (
+        <span className="credit">
+          {photo.attributionUrl ? <a href={photo.attributionUrl} target="_blank" rel="noreferrer">{label}</a> : label}
+        </span>
+      )}
     </div>
   );
 }

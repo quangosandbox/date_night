@@ -3,7 +3,8 @@
 import type { Filters, Mode, Option, Slot, User } from '../shared/types.ts';
 import { AREAS } from './providers/mockData.ts';
 import type { Providers } from './providers/index.ts';
-import { PROVIDER_LABELS } from './providers/index.ts';
+import { BOOKING_MODE, PROVIDER_LABELS } from './providers/index.ts';
+import { slotsFromHours } from './hours.ts';
 import { filmContent, venueContent } from './providers/mockContent.ts';
 import { tasteBoost, type TasteModel } from './taste.ts';
 import { milesBetween, toMinutes } from './util.ts';
@@ -101,21 +102,32 @@ async function buildDinner(f: Filters, area: (typeof AREAS)[number], p: Provider
 
   return Promise.all(
     venues.map(async (v) => {
-      // Query every reservation provider this venue is on, in parallel, and union the slots.
-      const perProvider = await Promise.all(
-        p.reservations.filter((r) => v.refs[r.id]).map((r) => r.availability(v.refs[r.id], v, f)),
-      );
-      const byTime = new Map<string, Slot>();
-      for (const s of perProvider.flat()) if (inWindow(s.time, f) && !byTime.has(s.time)) byTime.set(s.time, s);
-      const slots = [...byTime.values()].sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
+      let slots: Slot[];
+      if (v.hours) {
+        // Google data: suggested times from opening hours (open for a full dinner in the window).
+        slots = slotsFromHours(v.id, v.hours, f);
+      } else {
+        // Demo data: query every reservation provider this venue is on and union the slots.
+        const perProvider = await Promise.all(
+          p.reservations.filter((r) => v.refs[r.id]).map((r) => r.availability(v.refs[r.id], v, f)),
+        );
+        const byTime = new Map<string, Slot>();
+        for (const s of perProvider.flat()) if (inWindow(s.time, f) && !byTime.has(s.time)) byTime.set(s.time, s);
+        slots = [...byTime.values()].sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
+        if (BOOKING_MODE === 'handoff') slots = slots.map((s) => ({ ...s, provider: 'handoff', ref: undefined }));
+      }
 
       const distanceMi = Math.round(milesBetween(area, v) * 10) / 10;
+      const real = Boolean(v.dataAttribution);
       // Listing photos: Google first, then any the reservation providers return.
-      const listing = await Promise.all(p.reservations.filter((r) => v.refs[r.id] && r.listingPhotos).map((r) => r.listingPhotos!(v.refs[r.id], v)));
+      const listing = real ? [] : await Promise.all(p.reservations.filter((r) => v.refs[r.id] && r.listingPhotos).map((r) => r.listingPhotos!(v.refs[r.id], v)));
       const photos = [...(v.photos ?? []), ...listing.flat()];
-      const content = venueContent(v);
-      if (v.reviewList?.length) content.reviews = v.reviewList; // real reviews win over sample content
-      if (v.website) content.links = [...content.links, { label: 'Website', url: v.website }];
+      // Real places have no menu data (Google doesn't expose menus), so only demo venues get "order this".
+      const content = real ? { highlights: [], reviews: v.reviewList ?? [], links: [] as { label: string; url: string }[] } : venueContent(v);
+      if (v.reviewList?.length) content.reviews = v.reviewList;
+      const mapsUrl = v.handoff?.mapsUrl ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${v.name} ${v.address} New York`)}`;
+      const handoff = BOOKING_MODE === 'handoff' ? { ...v.handoff, mapsUrl } : undefined;
+      if (real) content.links = [{ label: 'Google Maps', url: mapsUrl }, ...(v.website ? [{ label: 'Website', url: v.website }] : [])];
       const confidence = (v.rating * v.reviews + 4.2 * 300) / (v.reviews + 300);
       const option: Option & { _score: number } = {
         id: v.id,
@@ -126,7 +138,9 @@ async function buildDinner(f: Filters, area: (typeof AREAS)[number], p: Provider
         rating: v.rating,
         ratingSource: 'Google',
         tags: v.tags,
-        providers: Object.keys(v.refs).map((k) => PROVIDER_LABELS[k] ?? k),
+        providers: BOOKING_MODE === 'handoff' ? [] : Object.keys(v.refs).map((k) => PROVIDER_LABELS[k] ?? k),
+        handoff,
+        dataAttribution: v.dataAttribution,
         address: v.address,
         distanceMi,
         price: v.price,
@@ -136,7 +150,7 @@ async function buildDinner(f: Filters, area: (typeof AREAS)[number], p: Provider
         art: CUISINE_ART[v.cuisine] ?? { bg: '#3A2E44', fg: '#F7F1EA', motif: 'star' },
         badges: [],
         slots,
-        _score: confidence + proximityBoost(slots, f) - distanceMi * 0.05,
+        _score: confidence + proximityBoost(slots, f) - distanceMi * 0.05 + (v.handoff?.reservable ? 0.1 : 0),
       };
       return option;
     }),

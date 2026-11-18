@@ -235,8 +235,9 @@ function ProfileCard({ option, leaving, onVote }: { option: Option; leaving: Vot
           ) : null}
           {isMovie && <span className="fact">{runtime}</span>}
           {option.distanceMi != null && <span className="fact"><Pin size={14} /> {option.distanceMi} mi</span>}
-          {span && <span className="fact">{isMovie ? 'showing' : 'tables'} {span}</span>}
+          {span && <span className="fact">{isMovie ? 'showing' : option.handoff ? 'open' : 'tables'} {span}</span>}
           {option.providers[0] && <span className="fact">via {option.providers.join(' / ')}</span>}
+          {option.handoff?.reservable && <span className="fact">takes reservations</span>}
         </div>
 
         <section className="section salmon">
@@ -247,6 +248,7 @@ function ProfileCard({ option, leaving, onVote }: { option: Option; leaving: Vot
 
         {option.photos[1] && <Photo option={option} index={1} className="inline-photo" />}
 
+        {option.highlights.length > 0 && (
         <section className="section rice">
           <div className="section-label">{isMovie ? 'why watch' : 'order this'}</div>
           {option.highlights.map((d, i) => (
@@ -265,7 +267,9 @@ function ProfileCard({ option, leaving, onVote }: { option: Option; leaving: Vot
             </div>
           ))}
         </section>
+        )}
 
+        {option.reviews.length > 0 && (
         <section className="section tamago">
           <div className="section-label">what people say</div>
           {option.reviews.map((r) => (
@@ -273,15 +277,16 @@ function ProfileCard({ option, leaving, onVote }: { option: Option; leaving: Vot
               <div className="review-text">“{r.text}”</div>
               <div className="review-by">
                 <span className="stars" aria-label={`${r.stars} stars`}>{Array.from({ length: Math.round(r.stars) }, (_, i) => <Star key={i} size={12} />)}</span>
-                — {r.author}, {r.when}
+                — {r.authorUrl ? <a href={r.authorUrl} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{r.author}</a> : r.author}{r.when ? `, ${r.when}` : ''}
               </div>
               <HeartBtn label={`${r.author}'s review`} onClick={() => onVote('like', `${r.author}'s review`)} style={{ position: 'absolute', right: 0, top: 0 }} />
             </div>
           ))}
         </section>
+        )}
 
         <section className="section">
-          <div className="section-label">{isMovie ? 'showtimes in your window' : 'tables in your window'}</div>
+          <div className="section-label">{isMovie ? 'showtimes in your window' : option.handoff ? 'open for dinner at' : 'tables in your window'}</div>
           <div className="wrap">
             {slots.slice(0, 8).map((sl) => (
               <span key={sl.id} className="slot-chip" style={{ background: 'var(--rice)' }}>
@@ -308,6 +313,7 @@ function ProfileCard({ option, leaving, onVote }: { option: Option; leaving: Vot
             <a key={l.label} className="link-pill" href={l.url} target="_blank" rel="noreferrer">{l.label} <Arrow size={14} /></a>
           ))}
         </div>
+        {option.dataAttribution && <div className="attribution">Place info, photos and reviews from {option.dataAttribution}</div>}
         <div className="card-end" />
       </div>
     </div>

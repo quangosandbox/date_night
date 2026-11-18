@@ -51,6 +51,10 @@ draft ──(host confirms filters)──▶ swiping ──(mutual like)──�
                                                                      └──(let fate pick)──▶ matched
 ```
 
+## 4b. Beta scope (Nov 2026)
+
+Dinner only, Google Maps as the only data source, handoff booking (see `docs/LAUNCH_CHECKLIST.md`). Sections below describe the full product; where they mention Resy/OpenTable availability and auto-booking, the beta instead uses opening hours + "takes reservations" and a reserve-then-confirm handoff.
+
 ## 5. Logic flow
 
 ### 5.1 Onboarding (once)

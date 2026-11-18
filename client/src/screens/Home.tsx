@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import type { Booking, Mode } from '../../../shared/types.ts';
 import type { ScreenProps } from '../App.tsx';
-import { api, fmtDay } from '../api.ts';
+import { api, fmtDay, type Meta } from '../api.ts';
 import { Pair } from '../components/Avatar.tsx';
 import { Logo, Plate, SushiPlate, TicketArt } from '../components/Brand.tsx';
 import { Arrow } from '../components/Icons.tsx';
 import { ProfileSheet } from './ProfileSheet.tsx';
 
-export function Home({ state, apply, switchTo, onPlan, onRate }: ScreenProps & { onPlan: (m: Mode) => void; onRate: (b: Booking) => void }) {
+export function Home({ state, apply, switchTo, meta, onPlan, onRate }: ScreenProps & { meta: Meta | null; onPlan: (m: Mode) => void; onRate: (b: Booking) => void }) {
+  const modes = meta?.modes ?? ['dinner'];
   const [sheet, setSheet] = useState(false);
   const hour = new Date().getHours();
   const when = hour >= 21 ? 'tomorrow' : 'tonight';
@@ -47,14 +48,24 @@ export function Home({ state, apply, switchTo, onPlan, onRate }: ScreenProps & {
           <SushiPlate className="art" />
           <span className="note" style={{ color: 'var(--ink)' }}>hungry?</span>
           <span className="title">Dinner</span>
-          <span className="sub">Resy · OpenTable · Google</span>
+          <span className="sub">{meta?.liveData ? 'Real spots from Google Maps' : 'Spots open in your window'}</span>
         </button>
-        <button className="mode-tile" style={{ background: 'var(--ink)', color: 'var(--cream)' }} onClick={() => onPlan('movie')}>
-          <TicketArt className="art" />
-          <span className="note" style={{ color: 'var(--tamago)' }}>or…</span>
-          <span className="title">A movie</span>
-          <span className="sub">Showtimes nearby · Letterboxd ratings</span>
-        </button>
+        {modes.includes('movie') ? (
+          <button className="mode-tile" style={{ background: 'var(--ink)', color: 'var(--cream)' }} onClick={() => onPlan('movie')}>
+            <TicketArt className="art" />
+            <span className="note" style={{ color: 'var(--tamago)' }}>or…</span>
+            <span className="title">A movie</span>
+            <span className="sub">Showtimes nearby · Letterboxd ratings</span>
+          </button>
+        ) : (
+          <div className="soon">
+            <TicketArt className="soon-art" />
+            <div className="grow">
+              <div className="note" style={{ color: 'var(--tamago)', fontSize: 18 }}>coming soon</div>
+              <div style={{ fontFamily: 'var(--display)', fontSize: 17 }}>Movies, shows &amp; concerts</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {state.taste.into.length + state.taste.notInto.length > 0 && (
@@ -96,7 +107,7 @@ export function Home({ state, apply, switchTo, onPlan, onRate }: ScreenProps & {
         </button>
       )}
 
-      {!state.me.letterboxd && (
+      {modes.includes('movie') && !state.me.letterboxd && (
         <button className="list-item outline" style={{ width: '100%', textAlign: 'left', color: 'var(--ink)' }} onClick={() => setSheet(true)}>
           <div className="grow">
             <div className="title-sm">Connect Letterboxd</div>

@@ -52,6 +52,29 @@ describe('taste learning', () => {
   });
 });
 
+describe('handoff: no table', () => {
+  it('drops the match and resumes swiping', async () => {
+    const call = async (method: string, path: string, uid: string | null, body?: unknown) => (await handle(method, path, uid, body)).body as any;
+    const a = (await call('POST', '/users', null, { name: 'Jo' })).me.id;
+    const b = (await call('POST', '/couple/local-partner', a, { name: 'Lee' })).partner.id;
+    let st = await call('POST', '/sessions', a, { mode: 'dinner', filters: { area: 'west-village', radiusMi: 4, date: '2026-11-20' } });
+    const sid = st.session.id;
+    const first = st.session.deck[0].id;
+    await call('POST', `/sessions/${sid}/vote`, a, { optionId: first, vote: 'like' });
+    await call('POST', `/sessions/${sid}/vote`, b, { optionId: first, vote: 'like' });
+    st = await call('POST', `/sessions/${sid}/no-table`, a);
+    expect(st.session.status).toBe('swiping');
+    expect(st.session.deck.some((o: Option) => o.id === first)).toBe(false);
+    expect(st.session.bookingError).toMatch(/No table/);
+  });
+
+  it('only offers dinner while movies are off', async () => {
+    const meta = (await handle('GET', '/meta', null, undefined)).body as any;
+    expect(meta.modes).toEqual(['dinner']);
+    expect(meta.bookingMode).toBe('handoff');
+  });
+});
+
 describe('API flow (in-process core)', () => {
   it('pairs, matches, books, rates, and learns', async () => {
     const call = async (method: string, path: string, uid: string | null, body?: unknown) => {
@@ -67,7 +90,14 @@ describe('API flow (in-process core)', () => {
     expect(first.photos.length).toBeGreaterThan(0);
     await call('POST', `/sessions/${st.session.id}/vote`, a, { optionId: first.id, vote: 'like', note: first.highlights[0].name });
     st = await call('POST', `/sessions/${st.session.id}/vote`, b, { optionId: first.id, vote: 'super' });
+    // Handoff mode: the match waits for you to reserve on Google Maps / site / phone.
+    expect(st.session.status).toBe('matched');
+    expect(st.session.match.option.handoff.mapsUrl).toContain('google.com/maps');
+    const time = st.session.match.option.slots[0].time;
+    st = await call('POST', `/sessions/${st.session.id}/booked`, a, { time });
     expect(st.session.status).toBe('booked');
+    expect(st.session.booking.selfReported).toBe(true);
+    expect(st.session.booking.slot.time).toBe(time);
     expect(st.session.match.hearts[0].item).toBe(first.highlights[0].name);
     expect(st.toRate).toHaveLength(1);
 
