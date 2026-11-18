@@ -3,6 +3,12 @@
 The beta runs as **one Vercel project** (static web app + one Node function at `/api/*`) backed by
 **one Neon Postgres database**.
 
+## Current beta deployment
+- **Production URL:** https://date-night-swart.vercel.app (Vercel project `date-night`)
+- **Database:** Neon project `datenight`, region `aws-us-east-2`, database `neondb` (pooled connection)
+- **Env vars set:** `DATABASE_URL` (sensitive; production + preview). `GOOGLE_PLACES_API_KEY` is still to be added by
+  the owner. Until it is, the app serves demo restaurants.
+
 ## How it works on Vercel
 - `npm run build:vercel` writes a prebuilt bundle to `.vercel/output` (Build Output API v3):
   the web app as static files, and `server/vercel.ts` bundled into a single function.
