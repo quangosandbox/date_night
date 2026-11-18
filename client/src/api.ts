@@ -8,6 +8,30 @@ const KEY = `dn.user${profile ? `.${profile}` : ''}`;
 export const getUserId = () => localStorage.getItem(KEY);
 export const setUserId = (id: string | null) => (id ? localStorage.setItem(KEY, id) : localStorage.removeItem(KEY));
 
+/** People who use this phone (you, plus a pass-and-play partner). Linked partners on their own phone aren't here. */
+const DEVICE_KEY = `dn.deviceUsers${profile ? `.${profile}` : ''}`;
+export function rememberOnDevice(id: string) {
+  try {
+    const ids = new Set<string>(JSON.parse(localStorage.getItem(DEVICE_KEY) ?? '[]'));
+    ids.add(id);
+    localStorage.setItem(DEVICE_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* storage blocked */
+  }
+}
+export function onThisDevice(id: string | undefined) {
+  if (!id) return false;
+  if (LOCAL) return true; // fully on-device: everyone is on this phone
+  try {
+    return (JSON.parse(localStorage.getItem(DEVICE_KEY) ?? '[]') as string[]).includes(id);
+  } catch {
+    return false;
+  }
+}
+
+/** Hosted API for linked accounts (e.g. the iOS app pointing at the beta server). Empty = same origin. */
+export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -18,7 +42,7 @@ export class ApiError extends Error {
 
 /** Run fully on-device (iOS app, shareable build, or ?local=1) instead of talking to a server. */
 export const LOCAL =
-  import.meta.env.VITE_BACKEND === 'local' || location.protocol === 'capacitor:' || new URLSearchParams(location.search).has('local');
+  !API_BASE && (import.meta.env.VITE_BACKEND === 'local' || location.protocol === 'capacitor:' || new URLSearchParams(location.search).has('local'));
 
 type Local = typeof import('./localBackend.ts');
 let localMod: Promise<Local> | null = null;
@@ -33,7 +57,7 @@ export async function api<T = AppState>(path: string, body?: unknown, method = b
     if (out && typeof out === 'object' && 'me' in out) (out as unknown as AppState).localMode = true;
     return out;
   }
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method,
     headers: { 'Content-Type': 'application/json', 'x-user-id': getUserId() ?? '' },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -97,7 +121,7 @@ export function useAppState() {
     let es: EventSource | null = null;
     let retry: ReturnType<typeof setTimeout>;
     const connect = () => {
-      es = new EventSource(`/api/events?user=${encodeURIComponent(userId)}`);
+      es = new EventSource(`${API_BASE}/api/events?user=${encodeURIComponent(userId)}`);
       es.addEventListener('update', () => refresh());
       es.addEventListener('hello', () => refresh());
       es.onerror = () => {

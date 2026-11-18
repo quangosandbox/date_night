@@ -27,13 +27,28 @@ export interface Filters {
   windowStart: string; // HH:mm
   windowEnd: string; // HH:mm
   partySize: number;
-  area: string; // neighborhood id
+  area: string; // neighborhood id (fallback centre when no origin)
+  /** A specific centre point — an address, a place, or "my location". The deck is geofenced around it. */
+  origin?: Origin;
   radiusMi: number;
   cuisines: string[]; // dinner — empty means any
   prices: number[]; // dinner — 1..4, empty means any
   genres: string[]; // movie — empty means any
   formats: string[]; // movie — empty means any
   autoBook: boolean;
+}
+
+export interface Origin {
+  lat: number;
+  lng: number;
+  label: string; // "12 Bleecker St", "Your location"
+}
+
+/** An address/place suggestion while typing in "Where". */
+export interface PlaceSuggestion {
+  id: string;
+  label: string;
+  secondary?: string;
 }
 
 export interface Slot {

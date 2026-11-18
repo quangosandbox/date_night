@@ -22,6 +22,17 @@ configureStore(initial, (db) => {
 const app = express();
 app.use(express.json());
 
+// The iOS app (capacitor://localhost) and any extra origins in ALLOWED_ORIGINS may call the API.
+const ALLOWED = new Set(['capacitor://localhost', 'ionic://localhost', 'http://localhost', ...(process.env.ALLOWED_ORIGINS ?? '').split(',').filter(Boolean)]);
+app.use((req, res, next) => {
+  const origin = req.header('origin');
+  if (origin && ALLOWED.has(origin)) {
+    res.set({ 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Content-Type, x-user-id', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS', Vary: 'Origin' });
+  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
 app.get('/api/events', (req, res) => {
   const uid = String(req.query.user ?? '');
   if (!userExists(uid)) return res.status(401).end();
@@ -44,7 +55,7 @@ app.get('/api/places-photo', async (req, res) => {
 });
 
 app.all(/^\/api\/.*/, async (req, res) => {
-  const result = await handle(req.method, req.path.replace(/^\/api/, ''), req.header('x-user-id') ?? null, req.body);
+  const result = await handle(req.method, req.url.replace(/^\/api/, ''), req.header('x-user-id') ?? null, req.body);
   res.status(result.status).json(result.body);
 });
 

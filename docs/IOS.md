@@ -40,7 +40,15 @@ Free-account installs expire after 7 days; just press Run again. After changing 
 `npm run build:share` produces a single self-contained page (`dist-artifact/index.html`) that runs
 the same on-device build in Safari; add it to your Home Screen for an app-like icon.
 
-## Two phones, live
+## Two ways to play
+- **Same phone** works in every build, including offline: add your partner's name, swipe, tap *Pass to …*, and a cover screen hides your swipes while you hand it over.
+- **Two phones** (linked accounts, swipe at different times or places) needs the hosted server. Build the app pointed at it:
+  ```bash
+  API_URL=https://your-server.example.com npm run ios:online
+  ```
+  Both phones install that build, one shares the invite code, the other joins. Matches show up on both phones instantly while the app is open. Alerts when the app is closed need push notifications (on the checklist).
+
+## Two phones, live (web)
 For two phones in real time, run the server (`npm run build && npm start` on a computer) and open
 `http://<computer-ip>:8787` on both phones (same Wi-Fi). The server build supports invite codes,
 real-time matching and Google Places once `GOOGLE_PLACES_API_KEY` is set.

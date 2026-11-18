@@ -62,9 +62,22 @@ describe('Google Places mapping', () => {
     const headers = calls[0].init.headers as Record<string, string>;
     expect(headers['X-Goog-Api-Key']).toBe('test-key');
     expect(headers['X-Goog-FieldMask']).toContain('places.regularOpeningHours');
-    expect(JSON.parse(String(calls[0].init.body)).textQuery).toContain('Italian restaurants');
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(calls[0].url).toContain('places:searchNearby');
+    expect(body.includedTypes).toEqual(['italian_restaurant', 'pizza_restaurant']);
+    expect(body.locationRestriction.circle).toEqual({ center: { latitude: 40.7358, longitude: -74.0036 }, radius: 3218 });
     await g.discover(area, 2, { ...f, cuisines: ['Italian'] });
     expect(calls).toHaveLength(1); // served from the short-lived cache
+  });
+});
+
+describe('address geofence', () => {
+  it('drops places outside the radius even if Google returns them', async () => {
+    const far = { ...place, id: 'far', location: { latitude: 40.80, longitude: -73.95 } };
+    const fakeFetch = (async () => new Response(JSON.stringify({ places: [place, far] }))) as unknown as typeof fetch;
+    const g = googlePlaces('k', fakeFetch);
+    const venues = await g.discover({ id: 'origin', name: '12 Bleecker St', lat: 40.7258, lng: -73.9927 }, 1, f);
+    expect(venues.map((v) => v.id)).toEqual(['g-ChIJabc123']);
   });
 });
 
@@ -72,7 +85,8 @@ describe('opening hours → suggested times', () => {
   const hours = place.regularOpeningHours!.periods as Period[];
 
   it('suggests times with room for a full dinner before close', () => {
-    expect(slotsFromHours('p', hours, f).map((s) => s.time)).toEqual(['19:00', '19:30', '20:00', '20:30']); // closes 22:00
+    // 15-minute steps; the last table needs ~75 min before the 22:00 close.
+    expect(slotsFromHours('p', hours, f).map((s) => s.time)).toEqual(['19:00', '19:15', '19:30', '19:45', '20:00', '20:15', '20:30', '20:45']);
   });
 
   it('is empty on days the place is closed', () => {
@@ -83,6 +97,6 @@ describe('opening hours → suggested times', () => {
     const late: Period[] = [{ open: { day: 2, hour: 18 }, close: { day: 3, hour: 2 } }]; // Tue 6pm → Wed 2am
     expect(openIntervals(late, '2026-11-17')).toEqual([[1080, 1560]]); // Tuesday
     expect(openIntervals(late, '2026-11-18')).toEqual([[-360, 120]]); // spill-over into Wednesday
-    expect(slotsFromHours('p', [{ open: { day: 0, hour: 0 } }], f)).toHaveLength(6);
+    expect(slotsFromHours('p', [{ open: { day: 0, hour: 0 } }], f)).toHaveLength(11);
   });
 });

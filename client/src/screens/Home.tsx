@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Booking, Mode } from '../../../shared/types.ts';
 import type { ScreenProps } from '../App.tsx';
 import { api, fmtDay, type Meta } from '../api.ts';
+import { onThisDevice } from '../api.ts';
 import { Pair } from '../components/Avatar.tsx';
 import { Logo, Plate, SushiPlate, TicketArt } from '../components/Brand.tsx';
 import { Arrow } from '../components/Icons.tsx';
@@ -15,7 +16,7 @@ export function Home({ state, apply, switchTo, meta, onPlan, onRate }: ScreenPro
   const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
   const partner = state.partner!;
   const pending = state.toRate[0];
-  const passAndPlay = state.localMode && !partner.isBot;
+  const passAndPlay = !partner.isBot && onThisDevice(partner.id);
 
   return (
     <div className="screen" style={{ gap: 22 }}>

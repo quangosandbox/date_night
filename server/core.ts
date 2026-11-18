@@ -5,7 +5,7 @@ import type { AppState, Booking, Filters, Mode, OurPlace, RankedEntry, Rating, U
 import { scheduleBot, setBotHooks } from './bot.ts';
 import { buildDeck } from './deck.ts';
 import { acceptNearMiss, applyVote, bookMatch, isExhausted, letFateDecide, newSession, noTable, recordSelfBooking, toView, type Session } from './engine.ts';
-import { BOOKING_MODE, GOOGLE_KEY, MODES, providers } from './providers/index.ts';
+import { BOOKING_MODE, GOOGLE_KEY, MODES, geocoder, providers } from './providers/index.ts';
 import { AREAS, CUISINES, FORMATS, GENRES } from './providers/mockData.ts';
 import { db, save, type StoredCouple } from './store.ts';
 import { bucket, insertRanking, learnTaste, summarizeTaste, userScores, type TasteModel } from './taste.ts';
@@ -127,6 +127,15 @@ function stateFor(u: User): AppState {
   };
 }
 
+function sanitizeOrigin(o: unknown): Filters['origin'] {
+  if (!o || typeof o !== 'object') return undefined;
+  const { lat, lng, label } = o as Record<string, unknown>;
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (!Number.isFinite(la) || !Number.isFinite(ln) || Math.abs(la) > 90 || Math.abs(ln) > 180) return undefined;
+  return { lat: la, lng: ln, label: typeof label === 'string' && label.trim() ? label.trim().slice(0, 80) : 'Pinned spot' };
+}
+
 function sanitizeFilters(input: Partial<Filters>, mode: Mode): Filters {
   const today = new Date().toISOString().slice(0, 10);
   const time = (t: unknown, fallback: string) => (typeof t === 'string' && /^\d{2}:\d{2}$/.test(t) ? t : fallback);
@@ -140,7 +149,8 @@ function sanitizeFilters(input: Partial<Filters>, mode: Mode): Filters {
     windowEnd,
     partySize: Math.min(8, Math.max(1, Number(input.partySize) || 2)),
     area: AREAS.some((a) => a.id === input.area) ? input.area! : AREAS[0].id,
-    radiusMi: Math.min(10, Math.max(0.5, Number(input.radiusMi) || 2)),
+    origin: sanitizeOrigin(input.origin),
+    radiusMi: Math.min(10, Math.max(0.25, Number(input.radiusMi) || 1)),
     cuisines: strs(input.cuisines, CUISINES),
     prices: Array.isArray(input.prices) ? input.prices.map(Number).filter((p) => p >= 1 && p <= 4) : [],
     genres: strs(input.genres, GENRES),
@@ -209,7 +219,7 @@ function rateAs(user: User, couple: StoredCouple, b: Booking, verdict: Verdict, 
 }
 
 // ---------- routes ----------
-type Ctx = { user: User; body: any; params: string[] };
+type Ctx = { user: User; body: any; params: string[]; query: URLSearchParams };
 type Handler = (ctx: Ctx) => Promise<unknown> | unknown;
 const routes: [string, RegExp, Handler, boolean][] = []; // method, path, handler, needs auth
 const route = (method: string, path: RegExp, h: Handler, authed = true) => routes.push([method, path, h, authed]);
@@ -356,6 +366,18 @@ route('POST', /^\/sessions\/([^/]+)\/book$/, async ({ user, body, params }) => {
   return stateFor(user);
 });
 
+/** "Where": address suggestions while typing, then the chosen place's exact point. */
+route('GET', /^\/places\/suggest$/, async ({ query }) => {
+  const near = AREAS.find((a) => a.id === query.get('area')) ?? AREAS[0];
+  return { suggestions: await geocoder.suggest(String(query.get('q') ?? '').slice(0, 120), near, query.get('session') ?? undefined) };
+});
+
+route('GET', /^\/places\/resolve$/, async ({ query }) => {
+  const origin = await geocoder.resolve(String(query.get('id') ?? ''), query.get('session') ?? undefined);
+  if (!origin) throw new HttpError(404, "Couldn't find that address. Try another.");
+  return { origin };
+});
+
 /** Handoff: "We booked it for 8:00" — you reserved outside the app. */
 route('POST', /^\/sessions\/([^/]+)\/booked$/, ({ user, body, params }) => {
   const s = sessionFor(user, params[0]);
@@ -449,7 +471,8 @@ route('POST', /^\/ratings$/, ({ user, body }) => {
 
 // ---------- dispatcher ----------
 export async function handle(method: string, path: string, userId: string | null, body: unknown): Promise<{ status: number; body: unknown }> {
-  const clean = path.split('?')[0];
+  const [clean, qs] = path.split('?');
+  const query = new URLSearchParams(qs ?? '');
   for (const [m, re, h, authed] of routes) {
     if (m !== method) continue;
     const match = clean.match(re);
@@ -457,7 +480,7 @@ export async function handle(method: string, path: string, userId: string | null
     const user = userId ? db.users[userId] : undefined;
     if (authed && !user) return { status: 401, body: { error: 'Unknown user' } };
     try {
-      return { status: 200, body: await h({ user: user!, body: body as never, params: match.slice(1) }) };
+      return { status: 200, body: await h({ user: user!, body: body as never, params: match.slice(1), query }) };
     } catch (e) {
       if (e instanceof HttpError) return { status: e.status, body: { error: e.message } };
       console.error(e);

@@ -2,13 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Filters as F, Mode } from '../../../shared/types.ts';
 import type { ScreenProps } from '../App.tsx';
 import { api, fmtTime, localISODate, type Meta } from '../api.ts';
-import { Back, Pin } from '../components/Icons.tsx';
+import { Back } from '../components/Icons.tsx';
+import { RADII, WherePicker } from '../components/WherePicker.tsx';
+import { TimePicker } from '../components/TimePicker.tsx';
 
-const MIN = 17 * 60; // 5 PM
-const MAX = 23 * 60; // 11 PM
-const STEP = 30;
-const toHHMM = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-const toMin = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3));
 
 const LAST_KEY = 'dn.lastFilters';
 
@@ -24,11 +21,12 @@ function defaults(mode: Mode, meta: Meta): F {
   }
   return {
     date,
-    windowStart: mode === 'dinner' ? '19:00' : '18:30',
-    windowEnd: mode === 'dinner' ? '21:00' : '21:30',
+    windowStart: mode === 'dinner' ? '18:30' : '18:30',
+    windowEnd: mode === 'dinner' ? '20:30' : '21:30',
     partySize: 2,
     area: saved.area ?? meta.areas[0].id,
-    radiusMi: saved.radiusMi ?? 2,
+    origin: saved.origin,
+    radiusMi: saved.radiusMi && RADII.includes(saved.radiusMi) ? saved.radiusMi : 1,
     cuisines: [],
     prices: [],
     genres: [],
@@ -65,18 +63,14 @@ export function Filters({ mode, meta, state, apply, onBack }: ScreenProps & { mo
   const today = localISODate();
   const tomorrow = localISODate(new Date(Date.now() + 86400000));
   const dayChoice = f.date === today ? 'today' : f.date === tomorrow ? 'tomorrow' : 'other';
-  const start = toMin(f.windowStart);
-  const end = toMin(f.windowEnd);
-  const pct = (m: number) => ((m - MIN) / (MAX - MIN)) * 100;
   const dayWord = dayChoice === 'today' ? 'tonight' : dayChoice === 'tomorrow' ? 'tomorrow' : new Date(`${f.date}T12:00`).toLocaleDateString(undefined, { weekday: 'long' });
 
-  const areaName = useMemo(() => meta.areas.find((a) => a.id === f.area)?.name, [meta, f.area]);
 
   async function start_() {
     setBusy(true);
     setError('');
     try {
-      localStorage.setItem(LAST_KEY, JSON.stringify({ area: f.area, radiusMi: f.radiusMi, autoBook: f.autoBook }));
+      localStorage.setItem(LAST_KEY, JSON.stringify({ area: f.area, origin: f.origin?.label === 'Your location' ? undefined : f.origin, radiusMi: f.radiusMi, autoBook: f.autoBook }));
       apply(await api('/sessions', { mode, filters: f }));
     } catch (e) {
       setError((e as Error).message);
@@ -103,40 +97,21 @@ export function Filters({ mode, meta, state, apply, onBack }: ScreenProps & { mo
             <input type="date" min={today} value={f.date} onChange={(e) => e.target.value && set('date', e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} aria-label="Pick a day" />
           </label>
         </div>
-        <div className="panel stack" style={{ gap: 14 }}>
-          <div className="row" style={{ justifyContent: 'space-between', fontSize: 15 }}>
-            <span className="muted">{mode === 'dinner' ? 'Table between' : 'Showtime between'}</span>
-            <span style={{ fontWeight: 600 }}>{fmtTime(f.windowStart)} – {fmtTime(f.windowEnd)}</span>
-          </div>
-          <div className="dual-range">
-            <div className="track" />
-            <div className="fill" style={{ left: `${pct(start)}%`, right: `${100 - pct(end)}%` }} />
-            <input type="range" min={MIN} max={MAX} step={STEP} value={start} aria-label="Earliest time" aria-valuetext={fmtTime(f.windowStart)}
-              onChange={(e) => set('windowStart', toHHMM(Math.min(Number(e.target.value), end - STEP)))} />
-            <input type="range" min={MIN} max={MAX} step={STEP} value={end} aria-label="Latest time" aria-valuetext={fmtTime(f.windowEnd)}
-              onChange={(e) => set('windowEnd', toHHMM(Math.max(Number(e.target.value), start + STEP)))} />
-          </div>
-          <div className="row" style={{ justifyContent: 'space-between', fontSize: 12, color: 'var(--faint)' }}>
-            <span>5 PM</span><span>11 PM</span>
-          </div>
-        </div>
+        <TimePicker
+          label={mode === 'dinner' ? 'table around' : 'showtime around'}
+          start={f.windowStart}
+          end={f.windowEnd}
+          onChange={(w) => setF((prev) => ({ ...prev, ...w }))}
+        />
       </section>
 
-      <section className="stack" aria-labelledby="where">
-        <h2 id="where" className="eyebrow" style={{ margin: 0 }}>Where</h2>
-        <div className="panel row" style={{ padding: '6px 6px 6px 16px', gap: 10 }}>
-          <Pin className="ember" style={{ flexShrink: 0 }} />
-          <label htmlFor="area" className="sr-only">Neighborhood</label>
-          <select id="area" className="select" style={{ boxShadow: 'none', background: 'transparent', minHeight: 44, padding: '0 36px 0 0', fontWeight: 600 }} value={f.area} onChange={(e) => set('area', e.target.value)}>
-            {meta.areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-        <div className="seg" style={{ ['--n' as string]: 4 }} role="group" aria-label={`Distance from ${areaName}`}>
-          {[1, 2, 4, 8].map((r) => (
-            <button key={r} className="chip solid" aria-pressed={f.radiusMi === r} onClick={() => set('radiusMi', r)}>{r} mi</button>
-          ))}
-        </div>
-      </section>
+      <WherePicker
+        areas={meta.areas}
+        area={f.area}
+        origin={f.origin}
+        radiusMi={f.radiusMi}
+        onChange={(next) => setF((prev) => ({ ...prev, ...next }))}
+      />
 
       {mode === 'dinner' ? (
         <section className="stack" aria-labelledby="mood">
@@ -196,7 +171,7 @@ export function Filters({ mode, meta, state, apply, onBack }: ScreenProps & { mo
       {error && <div role="alert" style={{ color: 'var(--ember-text)', fontSize: 14 }}>{error}</div>}
       <div className="sticky-cta">
         <button className="btn btn-red btn-block" onClick={start_} disabled={busy || count === 0}>
-          {count === 0 ? 'Nothing open — try widening' : `Start swiping${count != null ? ` · ${count} ${mode === 'dinner' ? 'spots' : 'films'} open` : ''}`}
+          {count === 0 ? 'Nothing open — try widening' : `Start swiping${count != null ? ` · ${count} ${mode === 'dinner' ? (count === 1 ? 'spot' : 'spots') : count === 1 ? 'film' : 'films'} open` : ''}`}
         </button>
         <div className="note" style={{ textAlign: 'center', fontSize: 17, color: 'var(--muted)' }}>{state.partner?.name} gets the same deck · tuned to what you two like</div>
       </div>

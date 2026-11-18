@@ -6,6 +6,7 @@
 //   - Showtimes/tickets: Fandango/Atom affiliate, MovieGlu or Gracenote
 import { mockLetterboxd, mockOpenTable, mockPlaces, mockResy, mockShowtimes } from './mock.ts';
 import { googlePlaces } from './googlePlaces.ts';
+import { demoGeocoder, googleGeocoder, type Geocoder } from './geocoder.ts';
 import type { FilmCatalog, ReservationProvider, ShowtimeProvider, VenueDiscovery } from './types.ts';
 
 export interface Providers {
@@ -37,6 +38,8 @@ export const providers: Providers = {
   films: mockLetterboxd,
   showtimes: mockShowtimes,
 };
+
+export const geocoder: Geocoder = GOOGLE_KEY ? googleGeocoder(GOOGLE_KEY) : demoGeocoder;
 
 export const PROVIDER_LABELS: Record<string, string> = {
   resy: 'Resy',

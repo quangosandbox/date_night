@@ -75,6 +75,32 @@ describe('handoff: no table', () => {
   });
 });
 
+describe('Where: address geofence', () => {
+  it('suggests and resolves an address, then geofences the deck around it', async () => {
+    const call = async (method: string, path: string, uid: string | null, body?: unknown) => (await handle(method, path, uid, body)).body as any;
+    const a = (await call('POST', '/users', null, { name: 'Kai' })).me.id;
+    await call('POST', '/couple/local-partner', a, { name: 'Rae' });
+    const { suggestions } = await call('GET', '/places/suggest?q=bleecker', a);
+    expect(suggestions[0].label).toBe('12 Bleecker St');
+    const { origin } = await call('GET', `/places/resolve?id=${suggestions[0].id}`, a);
+    expect(origin).toMatchObject({ label: '12 Bleecker St' });
+    const st = await call('POST', '/sessions', a, { mode: 'dinner', filters: { origin, radiusMi: 0.5, windowStart: '18:00', windowEnd: '22:00' } });
+    expect(st.session.filters.origin.label).toBe('12 Bleecker St');
+    for (const o of st.session.deck) {
+      expect(o.distanceMi).toBeLessThanOrEqual(0.5);
+      expect(o.areaName).toBe('12 Bleecker St');
+    }
+  });
+
+  it('rejects junk coordinates', async () => {
+    const call = async (method: string, path: string, uid: string | null, body?: unknown) => (await handle(method, path, uid, body)).body as any;
+    const a = (await call('POST', '/users', null, { name: 'Ty' })).me.id;
+    await call('POST', '/couple/local-partner', a, { name: 'Bo' });
+    const st = await call('POST', '/sessions', a, { mode: 'dinner', filters: { origin: { lat: 'x', lng: 999 } } });
+    expect(st.session.filters.origin).toBeUndefined();
+  });
+});
+
 describe('API flow (in-process core)', () => {
   it('pairs, matches, books, rates, and learns', async () => {
     const call = async (method: string, path: string, uid: string | null, body?: unknown) => {

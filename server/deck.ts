@@ -70,7 +70,10 @@ export interface DeckOptions {
 }
 
 export async function buildDeck(mode: Mode, filters: Filters, members: User[], p: Providers, opts: DeckOptions = {}): Promise<Option[]> {
-  const area = AREAS.find((a) => a.id === filters.area) ?? AREAS[0];
+  // Geofence centre: a specific address/location when given, else the neighborhood.
+  const area = filters.origin
+    ? { id: 'origin', name: filters.origin.label, lat: filters.origin.lat, lng: filters.origin.lng }
+    : AREAS.find((a) => a.id === filters.area) ?? AREAS[0];
   const exclude = opts.exclude ?? new Set<string>();
   const options = mode === 'dinner' ? await buildDinner(filters, area, p) : await buildMovies(filters, area, members, p);
   return options

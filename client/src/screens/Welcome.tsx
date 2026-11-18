@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type { AppState } from '../../../shared/types.ts';
-import { api, setUserId } from '../api.ts';
+import { api, rememberOnDevice, setUserId } from '../api.ts';
 import { Logo, SushiPlate } from '../components/Brand.tsx';
 import { Arrow } from '../components/Icons.tsx';
 
@@ -17,6 +17,7 @@ export function Welcome({ apply }: { apply: (s: AppState) => void }) {
     try {
       const s = await api('/users', { name, phone });
       setUserId(s.me.id);
+      rememberOnDevice(s.me.id);
       apply(s);
     } catch (err) {
       setError((err as Error).message);

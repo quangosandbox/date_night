@@ -1,11 +1,16 @@
+// Two ways to play: both on one phone (pass-and-play), or two linked phones (invite code) so you
+// can swipe at different times and from different places.
 import { useEffect, useState, type FormEvent } from 'react';
 import type { ScreenProps } from '../App.tsx';
-import { api } from '../api.ts';
+import { api, LOCAL, rememberOnDevice } from '../api.ts';
 import { Logo } from '../components/Brand.tsx';
 import { Share } from '../components/Icons.tsx';
 
+type Way = 'one' | 'two';
+
 export function PairUp({ state, apply }: ScreenProps) {
   const fromLink = new URLSearchParams(location.search).get('join') ?? '';
+  const [way, setWay] = useState<Way>(fromLink ? 'two' : LOCAL ? 'one' : 'two');
   const [code, setCode] = useState(fromLink.toUpperCase());
   const [partnerName, setPartnerName] = useState('');
   const [error, setError] = useState('');
@@ -39,7 +44,9 @@ export function PairUp({ state, apply }: ScreenProps) {
   async function addHere(e: FormEvent) {
     e.preventDefault();
     try {
-      apply(await api('/couple/local-partner', { name: partnerName }));
+      const s = await api('/couple/local-partner', { name: partnerName });
+      if (s.partner) rememberOnDevice(s.partner.id);
+      apply(s);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -72,21 +79,41 @@ export function PairUp({ state, apply }: ScreenProps) {
         <p className="lede">You each swipe privately. You only ever see what you both said yes to.</p>
       </div>
 
-      {state.localMode ? (
+      <div className="ways" role="tablist" aria-label="How you'll play">
+        <button role="tab" aria-selected={way === 'one'} className="way" onClick={() => { setWay('one'); setError(''); }}>
+          <PhonesIcon n={1} />
+          <span className="way-title">Same phone</span>
+          <span className="way-sub">Sitting together. Swipe, then pass it over.</span>
+        </button>
+        <button role="tab" aria-selected={way === 'two'} className="way" onClick={() => { setWay('two'); setError(''); }}>
+          <PhonesIcon n={2} />
+          <span className="way-title">Two phones</span>
+          <span className="way-sub">Link accounts. Swipe anytime, from anywhere.</span>
+        </button>
+      </div>
+
+      {way === 'one' && (
         <form className="panel stack" style={{ gap: 14 }} onSubmit={addHere}>
-          <div className="note">both on this phone?</div>
           <div className="field">
             <label htmlFor="pname">Your partner's first name</label>
             <input id="pname" className="input" style={{ background: 'var(--peach)' }} value={partnerName} onChange={(e) => { setPartnerName(e.target.value); setError(''); }} placeholder="Sam" />
           </div>
-          <button className="btn btn-red btn-block">Pass-and-play together</button>
-          <div className="meta-sm" style={{ textAlign: 'center' }}>Swipe, then hand the phone over. No peeking.</div>
-          {error && <div role="alert" style={{ color: 'var(--tobiko-ink)', fontSize: 14, fontWeight: 700 }}>{error}</div>}
+          <button className="btn btn-red btn-block">Play on this phone</button>
+          <div className="meta-sm" style={{ textAlign: 'center' }}>We'll cover the screen between turns. No peeking.</div>
         </form>
-      ) : (
+      )}
+
+      {way === 'two' && LOCAL && (
+        <div className="panel stack" style={{ gap: 8 }}>
+          <div className="note">needs the online version</div>
+          <p className="lede" style={{ fontSize: 15 }}>This offline build can't link two phones. Install the beta (or open the web link) on both phones to pair with a code.</p>
+        </div>
+      )}
+
+      {way === 'two' && !LOCAL && (
         <>
           <section className="panel stack" style={{ alignItems: 'center', gap: 18 }} aria-label="Your invite code">
-            <div className="eyebrow">your invite code</div>
+            <div className="eyebrow">send them your code</div>
             <div className="code-grid" aria-label={invite.split('').join(' ')}>
               {invite.split('').map((c, i) => <div key={i} className="code-cell" aria-hidden="true">{c}</div>)}
             </div>
@@ -100,15 +127,31 @@ export function PairUp({ state, apply }: ScreenProps) {
               <input id="code" className="input code-input" maxLength={6} autoComplete="off" autoCapitalize="characters" value={code} onChange={(e) => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')); setError(''); }} placeholder="6 chars" />
               <button className="btn btn-sm" style={{ height: 54, borderRadius: 16 }} disabled={busy}>Join</button>
             </div>
-            {error && <div role="alert" style={{ color: 'var(--tobiko-ink)', fontSize: 14, fontWeight: 700 }}>{error}</div>}
           </form>
         </>
       )}
+
+      {error && <div role="alert" style={{ color: 'var(--tobiko-ink)', fontSize: 14, fontWeight: 700 }}>{error}</div>}
 
       <div className="spacer" />
       <button className="link-btn" onClick={() => api('/couple/demo', {}).then(apply)}>
         No one handy? <span style={{ color: 'var(--ink)', textDecoration: 'underline', fontWeight: 700 }}>Try it with a demo partner</span>
       </button>
     </div>
+  );
+}
+
+function PhonesIcon({ n }: { n: 1 | 2 }) {
+  return (
+    <svg width="44" height="34" viewBox="0 0 44 34" aria-hidden="true">
+      {n === 1 ? (
+        <rect x="14" y="2" width="16" height="30" rx="4" fill="#1A1414" />
+      ) : (
+        <>
+          <rect x="4" y="5" width="15" height="27" rx="4" fill="#1A1414" transform="rotate(-8 11 18)" />
+          <rect x="25" y="2" width="15" height="27" rx="4" fill="#E8473F" transform="rotate(8 32 16)" />
+        </>
+      )}
+    </svg>
   );
 }

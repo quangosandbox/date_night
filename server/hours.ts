@@ -29,12 +29,12 @@ export function openIntervals(periods: Period[], date: string): [number, number]
   return out;
 }
 
-/** Suggested reservation times (every 30 min) inside the window when the place is open. */
+/** Suggested reservation times (every 15 min) inside the window when the place is open. */
 export function slotsFromHours(placeId: string, periods: Period[] | undefined, f: Filters): Slot[] {
   if (!periods?.length) return [];
   const intervals = openIntervals(periods, f.date);
   const slots: Slot[] = [];
-  for (let t = toMinutes(f.windowStart); t <= toMinutes(f.windowEnd); t += 30) {
+  for (let t = toMinutes(f.windowStart); t <= toMinutes(f.windowEnd); t += 15) {
     if (intervals.some(([a, b]) => t >= a && t + MEAL_MINUTES <= b)) {
       const time = fromMinutes(t);
       slots.push({ id: `handoff:${placeId}:${f.date}:${time}`, time, provider: 'handoff' });

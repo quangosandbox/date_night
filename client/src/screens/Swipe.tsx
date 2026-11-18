@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Option, Vote } from '../../../shared/types.ts';
 import type { ScreenProps } from '../App.tsx';
 import { api, fmtDay, fmtTime, fmtTimeShort } from '../api.ts';
+import { onThisDevice } from '../api.ts';
 import { Chopsticks, Photo } from '../components/Brand.tsx';
 import { Arrow, Close, Heart, Pin, Star } from '../components/Icons.tsx';
 import { MiniMap } from '../components/MiniMap.tsx';
@@ -16,7 +17,7 @@ export function Swipe({ state, apply, switchTo }: ScreenProps) {
   const [local, setLocal] = useState<Record<string, Vote>>({});
   const [leaving, setLeaving] = useState<{ id: string; vote: Vote } | null>(null);
   const [toast, setToast] = useState<string | null>(s.bookingError);
-  const passAndPlay = state.localMode && !partner.isBot;
+  const passAndPlay = !partner.isBot && onThisDevice(partner.id);
 
   useEffect(() => setToast(s.bookingError), [s.bookingError]);
   useEffect(() => {

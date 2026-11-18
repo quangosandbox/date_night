@@ -49,8 +49,15 @@ const FIELDS = [
   'places.photos', 'places.reviews', 'places.editorialSummary', 'places.websiteUri', 'places.googleMapsUri',
   'places.nationalPhoneNumber', 'places.regularOpeningHours', 'places.reservable', 'places.servesDinner',
   'places.outdoorSeating', 'places.servesCocktails', 'places.servesWine', 'places.liveMusic', 'places.servesVegetarianFood',
-  'places.businessStatus', 'nextPageToken',
+  'places.businessStatus',
 ].join(',');
+
+/** Google place types to search for each cuisine filter. */
+export function typesFor(cuisines: string[]): string[] {
+  if (!cuisines.length) return ['restaurant'];
+  const types = CUISINE_BY_TYPE.filter(([, c]) => cuisines.includes(c)).map(([t]) => t);
+  return types.length ? types.slice(0, 50) : ['restaurant'];
+}
 
 export interface GPlace {
   id: string;
@@ -141,52 +148,38 @@ const CACHE_MS = 10 * 60 * 1000;
 const cache = new Map<string, { at: number; venues: Promise<Venue[]> }>();
 
 export function googlePlaces(apiKey: string, fetchImpl: typeof fetch = fetch): VenueDiscovery {
-  async function search(textQuery: string, area: Area, radiusMi: number, queried?: string): Promise<Venue[]> {
-    const out: Venue[] = [];
-    let pageToken: string | undefined;
-    for (let page = 0; page < 2; page++) {
-      const res = await fetchImpl('https://places.googleapis.com/v1/places:searchText', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELDS },
-        body: JSON.stringify({
-          textQuery,
-          includedType: 'restaurant',
-          pageSize: 20,
-          pageToken,
-          locationBias: { circle: { center: { latitude: area.lat, longitude: area.lng }, radius: Math.min(50000, radiusMi * 1609) } },
-        }),
-      });
-      if (!res.ok) throw new Error(`Google Places ${res.status}: ${(await res.text()).slice(0, 200)}`);
-      const data = (await res.json()) as { places?: GPlace[]; nextPageToken?: string };
-      for (const p of data.places ?? []) if (p.location && p.businessStatus !== 'CLOSED_PERMANENTLY') out.push(toVenue(p, queried));
-      pageToken = data.nextPageToken;
-      if (!pageToken) break;
-    }
-    return out;
+  // Nearby Search with a circle *restriction*: results are geofenced to the radius around the
+  // chosen address/location, ranked by popularity. One request per deck (cached briefly).
+  async function search(area: Area, radiusMi: number, cuisines: string[]): Promise<Venue[]> {
+    const res = await fetchImpl('https://places.googleapis.com/v1/places:searchNearby', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELDS },
+      body: JSON.stringify({
+        includedTypes: typesFor(cuisines),
+        maxResultCount: 20,
+        rankPreference: 'POPULARITY',
+        locationRestriction: { circle: { center: { latitude: area.lat, longitude: area.lng }, radius: Math.min(50000, Math.round(radiusMi * 1609)) } },
+      }),
+    });
+    if (!res.ok) throw new Error(`Google Places ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const data = (await res.json()) as { places?: GPlace[] };
+    const only = cuisines.length === 1 ? cuisines[0] : undefined;
+    return (data.places ?? []).filter((p) => p.location && p.businessStatus !== 'CLOSED_PERMANENTLY').map((p) => toVenue(p, only));
   }
 
   return {
     name: 'Google Places',
     async discover(area: Area, radiusMi: number, filters: Filters) {
-      // One search per chosen cuisine (max 3), otherwise a general dinner search.
-      const queries = filters.cuisines.length
-        ? filters.cuisines.slice(0, 3).map((c) => ({ q: `${c} restaurants for dinner in ${area.name}, New York`, c }))
-        : [{ q: `restaurants for dinner in ${area.name}, New York`, c: undefined }];
-      const results = await Promise.all(
-        queries.map(({ q, c }) => {
-          const key = `${q}|${radiusMi}`;
-          const hit = cache.get(key);
-          if (hit && Date.now() - hit.at < CACHE_MS) return hit.venues;
-          const venues = search(q, area, radiusMi, c);
-          cache.set(key, { at: Date.now(), venues });
-          venues.catch(() => cache.delete(key));
-          return venues;
-        }),
-      );
-      const seen = new Set<string>();
-      return results
-        .flat()
-        .filter((v) => !seen.has(v.id) && seen.add(v.id))
+      const key = `${area.lat.toFixed(4)},${area.lng.toFixed(4)}|${radiusMi}|${[...filters.cuisines].sort().join('+')}`;
+      const hit = cache.get(key);
+      let venues: Promise<Venue[]>;
+      if (hit && Date.now() - hit.at < CACHE_MS) venues = hit.venues;
+      else {
+        venues = search(area, radiusMi, filters.cuisines);
+        cache.set(key, { at: Date.now(), venues });
+        venues.catch(() => cache.delete(key));
+      }
+      return (await venues)
         .filter((v) => milesBetween(area, v) <= radiusMi)
         .filter((v) => v.servesDinner !== false && v.handoff?.reservable !== false); // dinner + takes reservations
     },
