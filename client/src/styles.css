@@ -406,3 +406,22 @@ button.slot-chip[aria-pressed='true'], .slot-chip.best { background: var(--ink);
 .way[aria-selected='true'] { box-shadow: inset 0 0 0 3px var(--ink); }
 .way-title { font-family: var(--display); font-size: 17px; }
 .way-sub { font-size: 13px; color: var(--muted); line-height: 1.35; }
+
+/* ---------- home button, resume banner, profile ---------- */
+.icon-btn.on-dark { background: rgba(255, 247, 238, 0.16); color: var(--cream); }
+.resume-banner { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 24px; background: var(--tobiko); color: var(--ink); border: 0; width: 100%; text-align: left; }
+.resume-banner .note { font-size: 19px; }
+.auth-tabs { display: flex; gap: 6px; padding: 4px; border-radius: 999px; background: var(--cream); }
+.auth-tabs button { flex: 1; height: 40px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; font-size: 14px; color: var(--ink); }
+.auth-tabs button[aria-selected='true'] { background: var(--ink); color: var(--cream); }
+.profile-card { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 28px; background: var(--cream); }
+.profile-card .input { background: var(--peach); }
+.profile-head { display: flex; align-items: center; gap: 16px; }
+.profile-avatar { width: 64px; height: 64px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--display); font-size: 28px; color: var(--ink); flex-shrink: 0; }
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { padding: 12px 8px; border-radius: 20px; background: var(--cream); text-align: center; }
+.stat b { display: block; font-family: var(--display); font-size: 24px; line-height: 1.1; }
+.stat span { font-size: 12px; font-weight: 600; color: var(--muted); }
+.form-error { color: var(--tobiko-ink); font-size: 14px; font-weight: 700; }
+.form-ok { color: #4f6a1f; font-size: 14px; font-weight: 700; }
+.profile-card .taste .tag { background: var(--peach); }

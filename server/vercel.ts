@@ -9,6 +9,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import pg from 'pg';
+import { credentialUserId, normalizeEmail } from './auth.ts';
 import { handle } from './core.ts';
 import { GOOGLE_KEY } from './providers/index.ts';
 import { resolvePlacesPhoto } from './providers/googlePlaces.ts';
@@ -44,7 +45,8 @@ export function ensureSchema(client: pg.Pool | pg.PoolClient = getPool()) {
          PRIMARY KEY (kind, id)
        );
        CREATE INDEX IF NOT EXISTS dn_docs_couple ON dn_docs (kind, couple_id);
-       CREATE UNIQUE INDEX IF NOT EXISTS dn_docs_invite ON dn_docs (invite_code) WHERE invite_code IS NOT NULL;`,
+       CREATE UNIQUE INDEX IF NOT EXISTS dn_docs_invite ON dn_docs (invite_code) WHERE invite_code IS NOT NULL;
+       CREATE UNIQUE INDEX IF NOT EXISTS dn_docs_email ON dn_docs (lower(data->>'email')) WHERE kind = 'user';`,
     )
     .then(() => undefined)
     .catch((e) => {
@@ -82,7 +84,8 @@ function docMeta(kind: Kind, doc: Record<string, unknown>): { coupleId: string |
 }
 
 /** Run one API call inside a transaction with a request-scoped DB. Exported for tests. */
-export async function runApi(method: string, path: string, userId: string | null, body: unknown, p: pg.Pool = getPool()) {
+export async function runApi(method: string, path: string, credential: string | null, body: unknown, p: pg.Pool = getPool()) {
+  const userId = credentialUserId(credential);
   await ensureSchema(p);
   const c = await p.connect();
   try {
@@ -92,6 +95,20 @@ export async function runApi(method: string, path: string, userId: string | null
       await loadInto(c, dbs, `SELECT kind, id, data FROM dn_docs WHERE kind = 'user' AND id = $1`, [userId]);
       const me = dbs.users[userId];
       if (me?.coupleId) await loadCouple(c, dbs, me.coupleId);
+    }
+    // Accounts are looked up by email (log in), or checked for clashes (sign up, save account).
+    if (/^\/(auth\/(login|signup)|me\/account)$/.test(path)) {
+      const email = normalizeEmail((body as { email?: string } | null)?.email);
+      if (email) {
+        const { rows } = await c.query<{ id: string; data: { coupleId?: string | null } }>(
+          `SELECT id, data FROM dn_docs WHERE kind = 'user' AND lower(data->>'email') = $1 FOR UPDATE`,
+          [email],
+        );
+        for (const r of rows) {
+          dbs.users[r.id] ??= r.data as never;
+          if (path === '/auth/login' && r.data.coupleId && !dbs.couples[r.data.coupleId]) await loadCouple(c, dbs, r.data.coupleId);
+        }
+      }
     }
     if (/^\/couple\/join/.test(path)) {
       const code = String((body as { code?: string } | null)?.code ?? '').trim().toUpperCase();
@@ -103,7 +120,7 @@ export async function runApi(method: string, path: string, userId: string | null
     for (const kind of Object.keys(BUCKET) as Kind[])
       for (const [id, doc] of Object.entries(dbs[BUCKET[kind]])) before.set(`${kind}:${id}`, toDbJson(doc));
 
-    const result = await scope.run(dbs, () => handle(method, path, userId, body));
+    const result = await scope.run(dbs, () => handle(method, path, credential, body));
 
     if (result.status < 500) {
       const seen = new Set<string>();

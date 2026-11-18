@@ -70,6 +70,20 @@ describe.skipIf(!enabled)('Vercel entry on Postgres', () => {
     expect((await call('GET', '/state', a)).toRate).toHaveLength(1);
   });
 
+  it('logs in by email from a fresh request and enforces one account per email', async () => {
+    const su = await call('POST', '/auth/signup', null, { name: 'Pat', email: 'Pat@Example.com', password: 'longenough' });
+    const code = (await call('POST', '/couple', su.token)).couple.inviteCode;
+    const b = (await call('POST', '/users', null, { name: 'Max' })).me.id;
+    await call('POST', '/couple/join', b, { code });
+
+    const login = await call('POST', '/auth/login', null, { email: 'pat@example.com', password: 'longenough' });
+    expect(login.me.id).toBe(su.me.id);
+    expect(login.partner.name).toBe('Max'); // couple loaded alongside the account
+    expect((await runApi('GET', '/state', su.me.id, undefined, pool)).status).toBe(401);
+    expect((await runApi('POST', '/auth/signup', null, { name: 'Pat 2', email: 'PAT@example.com', password: 'longenough' }, pool)).status).toBe(409);
+    expect((await runApi('POST', '/me/account', b, { email: 'pat@example.com', password: 'longenough' }, pool)).status).toBe(409);
+  });
+
   it('runs the demo partner synchronously', async () => {
     const a = (await call('POST', '/users', null, { name: 'Jo' })).me.id;
     await call('POST', '/couple/demo', a);

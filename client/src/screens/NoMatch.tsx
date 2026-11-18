@@ -2,10 +2,11 @@ import { useState } from 'react';
 import type { ScreenProps } from '../App.tsx';
 import { api, fmtTime } from '../api.ts';
 import { Plate } from '../components/Brand.tsx';
+import { HomeButton } from '../components/HomeButton.tsx';
 import { Dice } from '../components/Icons.tsx';
 import { endSession } from './Home.tsx';
 
-export function NoMatch({ state, apply }: ScreenProps) {
+export function NoMatch({ state, apply, goHome }: ScreenProps) {
   const s = state.session!;
   const partner = state.partner!;
   const [busy, setBusy] = useState<string | null>(null);
@@ -23,7 +24,10 @@ export function NoMatch({ state, apply }: ScreenProps) {
   const isMovie = s.mode === 'movie';
 
   return (
-    <div className="screen" style={{ paddingTop: 40 }}>
+    <div className="screen">
+      <header className="row">
+        <HomeButton onClick={goHome} />
+      </header>
       <div className="stack">
         <h1 className="h1" style={{ fontSize: 40 }}>
           So close. <span className="hl">Tiebreaker time.</span>

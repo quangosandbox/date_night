@@ -3,7 +3,8 @@
 //  - On-device build: one in-memory DB persisted to localStorage.
 //  - Vercel (serverless): each request gets its own DB loaded from Postgres (see server/vercel.ts),
 //    selected through a scope resolver so concurrent requests never share state.
-import type { Booking, Couple, Rating, User } from '../shared/types.ts';
+import type { Booking, Couple, Rating } from '../shared/types.ts';
+import type { StoredUser } from './auth.ts';
 import type { Session } from './engine.ts';
 
 export type StoredRating = Omit<Rating, 'score'>; // score is derived from the ranked list
@@ -16,7 +17,7 @@ export interface StoredCouple extends Couple {
 }
 
 export interface DB {
-  users: Record<string, User>;
+  users: Record<string, StoredUser>;
   couples: Record<string, StoredCouple>;
   sessions: Record<string, Session>;
 }

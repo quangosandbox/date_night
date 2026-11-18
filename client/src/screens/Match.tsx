@@ -3,12 +3,13 @@ import type { ScreenProps } from '../App.tsx';
 import { api, fmtDay, fmtTime, fmtTimeShort, calendarLink } from '../api.ts';
 import { Pair } from '../components/Avatar.tsx';
 import { Photo } from '../components/Brand.tsx';
+import { HomeButton } from '../components/HomeButton.tsx';
 import { Calendar, Check, Heart, Pin } from '../components/Icons.tsx';
 import { endSession } from './Home.tsx';
 
 const PROVIDER_NAMES: Record<string, string> = { resy: 'Resy', opentable: 'OpenTable', atom: 'Atom', fandango: 'Fandango', handoff: 'Maps' };
 
-export function Match({ state, apply }: ScreenProps) {
+export function Match({ state, apply, goHome }: ScreenProps) {
   const s = state.session!;
   const m = s.match!;
   const partner = state.partner!;
@@ -65,6 +66,9 @@ export function Match({ state, apply }: ScreenProps) {
   return (
     <div className="screen match-screen" style={{ position: 'relative', overflow: 'hidden', gap: 20 }}>
       <Confetti />
+      <header className="row" style={{ position: 'relative', zIndex: 1 }}>
+        <HomeButton onClick={goHome} dark />
+      </header>
       <div className="match-head">
         <div className="match-sticks" aria-hidden="true">
           <span className="s l" />

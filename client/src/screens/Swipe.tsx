@@ -5,13 +5,14 @@ import { api, fmtDay, fmtTime, fmtTimeShort } from '../api.ts';
 import { onThisDevice } from '../api.ts';
 import { Chopsticks, Photo } from '../components/Brand.tsx';
 import { Arrow, Close, Heart, Pin, Star } from '../components/Icons.tsx';
+import { HomeButton } from '../components/HomeButton.tsx';
 import { MiniMap } from '../components/MiniMap.tsx';
 import { endSession } from './Home.tsx';
 
 const THRESHOLD = 110;
 const DOTS = ['#E8473F', '#F0C53E', '#9DAF6E', '#EC9177', '#EB6B3A'];
 
-export function Swipe({ state, apply, switchTo }: ScreenProps) {
+export function Swipe({ state, apply, switchTo, goHome }: ScreenProps) {
   const s = state.session!;
   const partner = state.partner!;
   const [local, setLocal] = useState<Record<string, Vote>>({});
@@ -83,7 +84,10 @@ export function Swipe({ state, apply, switchTo }: ScreenProps) {
   return (
     <div className="screen" style={{ gap: 14, paddingLeft: 14, paddingRight: 14 }}>
       <header className="swipe-top">
-        <button className="icon-btn" onClick={quit} aria-label={armed ? 'Tap again to end session' : 'End session'} style={armed ? { background: 'var(--tobiko)' } : undefined}><Close size={18} /></button>
+        <div className="row" style={{ gap: 6, flexShrink: 0 }}>
+          <HomeButton onClick={goHome} />
+          <button className="icon-btn" onClick={quit} aria-label={armed ? 'Tap again to end session' : 'End session'} title="End session" style={armed ? { background: 'var(--tobiko)' } : undefined}><Close size={18} /></button>
+        </div>
         <div style={{ flex: 1, minWidth: 0, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ fontFamily: 'var(--display)', fontSize: 15 }}>
             {s.mode === 'dinner' ? 'Dinner' : 'Movie'} · {fmtDay(s.filters.date).toLowerCase()}

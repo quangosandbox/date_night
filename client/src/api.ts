@@ -1,32 +1,49 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppState, Area } from '../../shared/types.ts';
 
-// Identity lives in localStorage. Add ?u=2 to the URL to act as a second person in the same browser.
+// The signed-in credential lives in localStorage: "<userId>.<token>" for accounts, or a bare
+// user id for guests. Add ?u=2 to the URL to act as a second person in the same browser.
 const profile = new URLSearchParams(location.search).get('u') ?? '';
 const KEY = `dn.user${profile ? `.${profile}` : ''}`;
 
-export const getUserId = () => localStorage.getItem(KEY);
-export const setUserId = (id: string | null) => (id ? localStorage.setItem(KEY, id) : localStorage.removeItem(KEY));
-
-/** People who use this phone (you, plus a pass-and-play partner). Linked partners on their own phone aren't here. */
-const DEVICE_KEY = `dn.deviceUsers${profile ? `.${profile}` : ''}`;
-export function rememberOnDevice(id: string) {
+function store(key: string, value: string | null) {
   try {
-    const ids = new Set<string>(JSON.parse(localStorage.getItem(DEVICE_KEY) ?? '[]'));
-    ids.add(id);
-    localStorage.setItem(DEVICE_KEY, JSON.stringify([...ids]));
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
   } catch {
     /* storage blocked */
   }
 }
+export const getCredential = () => {
+  try {
+    return localStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+};
+export const setCredential = (credential: string | null) => store(KEY, credential);
+
+/**
+ * People who use this phone (you, plus a pass-and-play partner) and how to sign each in.
+ * Linked partners on their own phone aren't here. Stored as { userId: credential }.
+ */
+const DEVICE_KEY = `dn.deviceUsers${profile ? `.${profile}` : ''}`;
+function deviceUsers(): Record<string, string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DEVICE_KEY) ?? '{}');
+    return Array.isArray(raw) ? Object.fromEntries(raw.map((id: string) => [id, id])) : raw; // older builds kept a list of ids
+  } catch {
+    return {};
+  }
+}
+export function rememberOnDevice(id: string, credential = id) {
+  store(DEVICE_KEY, JSON.stringify({ ...deviceUsers(), [id]: credential }));
+}
+export const forgetDevice = () => store(DEVICE_KEY, null);
 export function onThisDevice(id: string | undefined) {
   if (!id) return false;
   if (LOCAL) return true; // fully on-device: everyone is on this phone
-  try {
-    return (JSON.parse(localStorage.getItem(DEVICE_KEY) ?? '[]') as string[]).includes(id);
-  } catch {
-    return false;
-  }
+  return id in deviceUsers();
 }
 
 /** Hosted API for linked accounts (e.g. the iOS app pointing at the beta server). Empty = same origin. */
@@ -51,7 +68,7 @@ const local = () => (localMod ??= import('./localBackend.ts'));
 export async function api<T = AppState>(path: string, body?: unknown, method = body === undefined ? 'GET' : 'POST'): Promise<T> {
   if (LOCAL) {
     const { handle } = await local();
-    const r = await handle(method, path, getUserId(), body === undefined ? undefined : JSON.parse(JSON.stringify(body)));
+    const r = await handle(method, path, getCredential(), body === undefined ? undefined : JSON.parse(JSON.stringify(body)));
     if (r.status !== 200) throw new ApiError(r.status, (r.body as { error?: string }).error ?? 'Something went wrong');
     const out = JSON.parse(JSON.stringify(r.body)) as T; // detach from the live store
     if (out && typeof out === 'object' && 'me' in out) (out as unknown as AppState).localMode = true;
@@ -59,7 +76,7 @@ export async function api<T = AppState>(path: string, body?: unknown, method = b
   }
   const res = await fetch(`${API_BASE}/api${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', 'x-user-id': getUserId() ?? '' },
+    headers: { 'Content-Type': 'application/json', 'x-user-id': getCredential() ?? '' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
@@ -80,18 +97,18 @@ export interface Meta {
 /** App state with realtime updates over Server-Sent Events. */
 export function useAppState() {
   const [state, setState] = useState<AppState | null>(null);
-  const [loading, setLoading] = useState(Boolean(getUserId()));
+  const [loading, setLoading] = useState(Boolean(getCredential()));
   const seq = useRef(0);
 
   const refresh = useCallback(async () => {
-    if (!getUserId()) return setLoading(false);
+    if (!getCredential()) return setLoading(false);
     const mine = ++seq.current;
     try {
       const s = await api('/state');
       if (mine === seq.current) setState(s);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        setUserId(null);
+        setCredential(null);
         setState(null);
       }
     } finally {
@@ -134,7 +151,7 @@ export function useAppState() {
     let es: EventSource | null = null;
     let retry: ReturnType<typeof setTimeout>;
     const connect = () => {
-      es = new EventSource(`${API_BASE}/api/events?user=${encodeURIComponent(userId)}`);
+      es = new EventSource(`${API_BASE}/api/events?user=${encodeURIComponent(getCredential() ?? '')}`);
       es.addEventListener('update', () => refresh());
       es.addEventListener('hello', () => refresh());
       es.onerror = () => {
@@ -155,13 +172,32 @@ export function useAppState() {
   /** Pass-and-play: hand the phone to your partner. */
   const switchTo = useCallback(
     (uid: string) => {
-      setUserId(uid);
+      setCredential(deviceUsers()[uid] ?? uid);
       refresh();
     },
     [refresh],
   );
 
-  return { state, loading, apply, refresh, switchTo };
+  /** After sign up / log in / saving an account: keep the new credential on this device. */
+  const signIn = useCallback(
+    (s: AppState) => {
+      const credential = s.token ?? s.me.id;
+      setCredential(credential);
+      rememberOnDevice(s.me.id, credential);
+      apply(s);
+    },
+    [apply],
+  );
+
+  const signOut = useCallback(async () => {
+    await api('/auth/logout', {}).catch(() => {});
+    setCredential(null);
+    forgetDevice();
+    seq.current++;
+    setState(null);
+  }, []);
+
+  return { state, loading, apply, refresh, switchTo, signIn, signOut };
 }
 
 export function useMeta() {

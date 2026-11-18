@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { Booking, Mode } from '../../../shared/types.ts';
 import type { ScreenProps } from '../App.tsx';
 import { api, fmtDay, type Meta } from '../api.ts';
@@ -6,11 +5,10 @@ import { onThisDevice } from '../api.ts';
 import { Pair } from '../components/Avatar.tsx';
 import { Logo, Plate, SushiPlate, TicketArt } from '../components/Brand.tsx';
 import { Arrow } from '../components/Icons.tsx';
-import { ProfileSheet } from './ProfileSheet.tsx';
 
-export function Home({ state, apply, switchTo, meta, onPlan, onRate }: ScreenProps & { meta: Meta | null; onPlan: (m: Mode) => void; onRate: (b: Booking) => void }) {
+export function Home({ state, switchTo, openProfile, meta, onPlan, onRate, onResume }: ScreenProps & { meta: Meta | null; onPlan: (m: Mode) => void; onRate: (b: Booking) => void; onResume: () => void }) {
   const modes = meta?.modes ?? ['dinner'];
-  const [sheet, setSheet] = useState(false);
+  const session = state.session;
   const hour = new Date().getHours();
   const when = hour >= 21 ? 'tomorrow' : 'tonight';
   const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
@@ -22,7 +20,7 @@ export function Home({ state, apply, switchTo, meta, onPlan, onRate }: ScreenPro
     <div className="screen" style={{ gap: 22 }}>
       <header className="row" style={{ justifyContent: 'space-between' }}>
         <Logo />
-        <button style={{ background: 'none', border: 0, padding: 0 }} onClick={() => setSheet(true)} aria-label="Profile and settings">
+        <button style={{ background: 'none', border: 0, padding: 0 }} onClick={openProfile} aria-label="Profile and settings">
           <Pair me={state.me} partner={partner} />
         </button>
       </header>
@@ -31,6 +29,22 @@ export function Home({ state, apply, switchTo, meta, onPlan, onRate }: ScreenPro
         <div className="note" style={{ fontSize: 22 }}>{greeting}, {state.me.name} &amp; {partner.name} ✶</div>
         <h1 className="h1">What are we doing <span className="hl">{when}?</span></h1>
       </div>
+
+      {session && (
+        <button className="resume-banner" onClick={onResume}>
+          <div className="grow">
+            <div className="note">{session.status === 'swiping' ? 'still deciding' : session.status === 'exhausted' ? 'no mutual yes yet' : 'you matched!'}</div>
+            <div style={{ fontFamily: 'var(--display)', fontSize: 18, lineHeight: 1.1, marginTop: 2 }}>
+              {session.status === 'swiping'
+                ? `Back to swiping · ${session.deck.length - Object.keys(session.myVotes).length} left`
+                : session.status === 'exhausted'
+                  ? 'Back to the tiebreaker'
+                  : `Back to ${session.match?.option.title ?? 'your match'}`}
+            </div>
+          </div>
+          <Arrow size={22} />
+        </button>
+      )}
 
       {pending && (
         <button className="rate-banner" onClick={() => onRate(pending)}>
@@ -109,7 +123,7 @@ export function Home({ state, apply, switchTo, meta, onPlan, onRate }: ScreenPro
       )}
 
       {modes.includes('movie') && !state.me.letterboxd && (
-        <button className="list-item outline" style={{ width: '100%', textAlign: 'left', color: 'var(--ink)' }} onClick={() => setSheet(true)}>
+        <button className="list-item outline" style={{ width: '100%', textAlign: 'left', color: 'var(--ink)' }} onClick={openProfile}>
           <div className="grow">
             <div className="title-sm">Connect Letterboxd</div>
             <div className="meta-sm">Films on both your watchlists float to the top.</div>
@@ -118,7 +132,6 @@ export function Home({ state, apply, switchTo, meta, onPlan, onRate }: ScreenPro
         </button>
       )}
 
-      {sheet && <ProfileSheet state={state} apply={apply} switchTo={switchTo} onClose={() => setSheet(false)} />}
     </div>
   );
 }

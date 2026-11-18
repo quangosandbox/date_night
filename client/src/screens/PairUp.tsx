@@ -4,11 +4,11 @@ import { useEffect, useState, type FormEvent } from 'react';
 import type { ScreenProps } from '../App.tsx';
 import { api, LOCAL, rememberOnDevice } from '../api.ts';
 import { Logo } from '../components/Brand.tsx';
-import { Share } from '../components/Icons.tsx';
+import { Share, User } from '../components/Icons.tsx';
 
 type Way = 'one' | 'two';
 
-export function PairUp({ state, apply }: ScreenProps) {
+export function PairUp({ state, apply, openProfile }: ScreenProps) {
   const fromLink = new URLSearchParams(location.search).get('join') ?? '';
   const [way, setWay] = useState<Way>(fromLink ? 'two' : LOCAL ? 'one' : 'two');
   const [code, setCode] = useState(fromLink.toUpperCase());
@@ -72,7 +72,10 @@ export function PairUp({ state, apply }: ScreenProps) {
 
   return (
     <div className="screen">
-      <Logo />
+      <header className="row" style={{ justifyContent: 'space-between' }}>
+        <Logo />
+        <button className="icon-btn" onClick={openProfile} aria-label="Profile and settings" title="Profile"><User /></button>
+      </header>
       <div className="stack">
         <div className="note" style={{ fontSize: 22 }}>hi {state.me.name} —</div>
         <h1 className="h1">It takes <span className="hl">two</span> to pick.</h1>

@@ -7,6 +7,7 @@ const base = (size = 20, rest: SVGProps<SVGSVGElement>) => ({
 });
 
 export const Back = ({ size, ...r }: P) => <svg {...base(size, r)}><path d="M19 12H5M11 6l-6 6 6 6" /></svg>;
+export const House = ({ size, ...r }: P) => <svg {...base(size, r)}><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 9.5V20h13V9.5" /><path d="M10 20v-5h4v5" /></svg>;
 export const Close = ({ size, ...r }: P) => <svg {...base(size, r)}><path d="M6 6l12 12M18 6 6 18" /></svg>;
 export const Arrow = ({ size, ...r }: P) => <svg {...base(size, r)}><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
 export const Check = ({ size, ...r }: P) => <svg {...base(size, r)}><path d="m5 12 5 5 9-10" /></svg>;

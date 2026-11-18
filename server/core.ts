@@ -8,6 +8,7 @@ import { acceptNearMiss, applyVote, bookMatch, isExhausted, letFateDecide, newSe
 import { BOOKING_MODE, GOOGLE_KEY, MODES, geocoder, providers } from './providers/index.ts';
 import { AREAS, CUISINES, FORMATS, GENRES } from './providers/mockData.ts';
 import { db, save, type StoredCouple } from './store.ts';
+import { authenticate, hashPassword, issueToken, normalizeEmail, publicUser, revokeToken, validateCredentials, verifyPassword, type StoredUser } from './auth.ts';
 import { bucket, insertRanking, learnTaste, summarizeTaste, userScores, type TasteModel } from './taste.ts';
 import { id, inviteCode, rng } from './util.ts';
 
@@ -115,8 +116,8 @@ function stateFor(u: User): AppState {
   const myRanking: RankedEntry[] = (u.rankings ?? []).map((r) => ({ ...r, score: my.get(r.optionId) ?? 5 }));
 
   return {
-    me: u,
-    partner,
+    me: publicUser(u, true),
+    partner: partner ? publicUser(partner, false) : null,
     couple: couple ? { id: couple.id, inviteCode: couple.inviteCode, memberIds: couple.memberIds } : null,
     session: s ? toView(s, u.id) : null,
     history,
@@ -220,7 +221,7 @@ function rateAs(user: User, couple: StoredCouple, b: Booking, verdict: Verdict, 
 }
 
 // ---------- routes ----------
-type Ctx = { user: User; body: any; params: string[]; query: URLSearchParams };
+type Ctx = { user: StoredUser; body: any; params: string[]; query: URLSearchParams; credential: string | null };
 type Handler = (ctx: Ctx) => Promise<unknown> | unknown;
 const routes: [string, RegExp, Handler, boolean][] = []; // method, path, handler, needs auth
 const route = (method: string, path: RegExp, h: Handler, authed = true) => routes.push([method, path, h, authed]);
@@ -232,20 +233,95 @@ route(
   false,
 );
 
+function newUser(body: any): StoredUser {
+  const name = String(body?.name ?? '').trim().slice(0, 40);
+  const phone = String(body?.phone ?? '').trim().slice(0, 30);
+  if (!name) throw new HttpError(400, 'What should we call you?');
+  const user: StoredUser = { id: id('u'), name, phone, color: COLORS[Object.keys(db.users).length % 2], coupleId: null };
+  db.users[user.id] = user;
+  return user;
+}
+
+/** Guest profile kept on one device (the on-device build, and older beta users). */
 route(
   'POST',
   /^\/users$/,
   ({ body }) => {
-    const name = String(body?.name ?? '').trim().slice(0, 40);
-    const phone = String(body?.phone ?? '').trim().slice(0, 30);
-    if (!name) throw new HttpError(400, 'Name is required');
-    const user: User = { id: id('u'), name, phone, color: COLORS[Object.keys(db.users).length % 2], coupleId: null };
-    db.users[user.id] = user;
+    const user = newUser(body);
     save();
     return stateFor(user);
   },
   false,
 );
+
+// ---------- accounts ----------
+const findByEmail = (email: string) => Object.values(db.users).find((u) => u.email === email);
+
+async function setCredentials(user: StoredUser, body: any) {
+  const email = normalizeEmail(body?.email);
+  const problem = validateCredentials(email, body?.password);
+  if (problem) throw new HttpError(400, problem);
+  const taken = findByEmail(email);
+  if (taken && taken.id !== user.id) throw new HttpError(409, 'An account with that email already exists. Try logging in.');
+  user.email = email;
+  user.auth = await hashPassword(body.password);
+  user.tokens = []; // a new password signs out everywhere else
+}
+
+async function signedIn(user: StoredUser): Promise<AppState> {
+  const token = await issueToken(user);
+  save();
+  return { ...stateFor(user), token };
+}
+
+route(
+  'POST',
+  /^\/auth\/signup$/,
+  async ({ body }) => {
+    const email = normalizeEmail(body?.email);
+    if (findByEmail(email)) throw new HttpError(409, 'An account with that email already exists. Try logging in.');
+    const problem = validateCredentials(email, body?.password) ?? (String(body?.name ?? '').trim() ? null : 'What should we call you?');
+    if (problem) throw new HttpError(400, problem);
+    const user = newUser(body);
+    await setCredentials(user, body);
+    return signedIn(user);
+  },
+  false,
+);
+
+route(
+  'POST',
+  /^\/auth\/login$/,
+  async ({ body }) => {
+    const user = findByEmail(normalizeEmail(body?.email));
+    const ok = user?.auth && typeof body?.password === 'string' && (await verifyPassword(body.password, user.auth));
+    if (!user || !ok) throw new HttpError(401, "That email and password don't match.");
+    return signedIn(user);
+  },
+  false,
+);
+
+route('POST', /^\/auth\/logout$/, async ({ user, credential }) => {
+  await revokeToken(user, credential);
+  save();
+  return { ok: true };
+});
+
+/** A guest saves their profile as an account (email + password). */
+route('POST', /^\/me\/account$/, async ({ user, body }) => {
+  if (user.isBot) throw new HttpError(400, 'The demo partner can’t have an account.');
+  if (user.auth) throw new HttpError(409, 'You already have an account.');
+  await setCredentials(user, body);
+  return signedIn(user);
+});
+
+/** Change password (requires the current one); keeps this device signed in, signs out the rest. */
+route('POST', /^\/me\/password$/, async ({ user, body }) => {
+  if (!user.auth) throw new HttpError(400, 'Save your account first.');
+  if (typeof body?.current !== 'string' || !(await verifyPassword(body.current, user.auth))) throw new HttpError(401, 'Your current password is incorrect.');
+  await setCredentials(user, { email: user.email, password: body?.password });
+  return signedIn(user);
+});
 
 route('GET', /^\/state$/, ({ user }) => stateFor(user));
 
@@ -471,17 +547,18 @@ route('POST', /^\/ratings$/, ({ user, body }) => {
 });
 
 // ---------- dispatcher ----------
-export async function handle(method: string, path: string, userId: string | null, body: unknown): Promise<{ status: number; body: unknown }> {
+/** `credential` is "<userId>.<token>" for account holders, or a bare user id for guests. */
+export async function handle(method: string, path: string, credential: string | null, body: unknown): Promise<{ status: number; body: unknown }> {
   const [clean, qs] = path.split('?');
   const query = new URLSearchParams(qs ?? '');
   for (const [m, re, h, authed] of routes) {
     if (m !== method) continue;
     const match = clean.match(re);
     if (!match) continue;
-    const user = userId ? db.users[userId] : undefined;
-    if (authed && !user) return { status: 401, body: { error: 'Unknown user' } };
+    const user = await authenticate(db.users, credential);
+    if (authed && !user) return { status: 401, body: { error: 'Please log in again.' } };
     try {
-      return { status: 200, body: await h({ user: user!, body: body as never, params: match.slice(1), query }) };
+      return { status: 200, body: await h({ user: user!, body: body as never, params: match.slice(1), query, credential }) };
     } catch (e) {
       if (e instanceof HttpError) return { status: e.status, body: { error: e.message } };
       console.error(e);
@@ -491,4 +568,5 @@ export async function handle(method: string, path: string, userId: string | null
   return { status: 404, body: { error: 'Not found' } };
 }
 
-export const userExists = (uid: string) => !!db.users[uid];
+/** For the realtime stream: the user id a credential belongs to, if it's valid. */
+export const listenerId = async (credential: string) => (await authenticate(db.users, credential))?.id ?? null;

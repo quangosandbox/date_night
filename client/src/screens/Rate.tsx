@@ -5,7 +5,7 @@ import type { Booking, RankedEntry, Verdict } from '../../../shared/types.ts';
 import type { ScreenProps } from '../App.tsx';
 import { api, fmtDay } from '../api.ts';
 import { Plate } from '../components/Brand.tsx';
-import { Back } from '../components/Icons.tsx';
+import { HomeButton } from '../components/HomeButton.tsx';
 
 const TAGS = {
   dinner: ['Great food', 'Romantic', 'Great service', 'Cozy', 'Good value', 'Too loud', 'Slow service', 'Pricey', 'Would go back'],
@@ -81,7 +81,7 @@ export function Rate({ state, apply, booking, onDone }: ScreenProps & { booking:
   return (
     <div className="screen" style={{ gap: 22 }}>
       <header className="row">
-        <button className="icon-btn" onClick={onDone} aria-label="Close"><Back /></button>
+        <HomeButton onClick={onDone} />
         <div className="eyebrow">{fmtDay(booking.date)} · {booking.title}</div>
       </header>
 

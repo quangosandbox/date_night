@@ -12,6 +12,10 @@ export interface User {
   coupleId: string | null;
   letterboxd?: string;
   isBot?: boolean;
+  /** Only ever present on your own user. */
+  email?: string;
+  /** Has an email + password (vs. a guest kept on one device). */
+  hasAccount?: boolean;
   /** Ranked best → worst; verdict buckets keep loved above fine above meh. */
   rankings?: { optionId: string; title: string; kind: Mode; verdict: Verdict; art: Option['art']; photo?: string }[];
 }
@@ -223,6 +227,7 @@ export interface AppState {
   taste: Taste;
   localMode?: boolean; // running fully on-device (no server)
   realtime?: 'sse' | 'poll'; // how the client should listen for partner updates
+  token?: string; // a new sign-in credential (sign up, log in, save account)
 }
 
 export interface Area {

@@ -2,7 +2,7 @@
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import { handle, subscribe, userExists } from './core.ts';
+import { handle, listenerId, subscribe } from './core.ts';
 import { GOOGLE_KEY } from './providers/index.ts';
 import { resolvePlacesPhoto } from './providers/googlePlaces.ts';
 import { configureStore, type DB } from './store.ts';
@@ -33,9 +33,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/api/events', (req, res) => {
-  const uid = String(req.query.user ?? '');
-  if (!userExists(uid)) return res.status(401).end();
+app.get('/api/events', async (req, res) => {
+  // EventSource can't send headers, so the credential comes in the query string.
+  const uid = await listenerId(String(req.query.user ?? ''));
+  if (!uid) return res.status(401).end();
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   res.flushHeaders();
   res.write(`event: hello\ndata: {}\n\n`);

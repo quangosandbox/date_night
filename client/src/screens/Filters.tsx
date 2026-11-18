@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Filters as F, Mode } from '../../../shared/types.ts';
 import type { ScreenProps } from '../App.tsx';
 import { api, fmtTime, localISODate, type Meta } from '../api.ts';
-import { Back } from '../components/Icons.tsx';
+import { HomeButton } from '../components/HomeButton.tsx';
 import { RADII, WherePicker } from '../components/WherePicker.tsx';
 import { TimePicker } from '../components/TimePicker.tsx';
 
@@ -81,7 +81,7 @@ export function Filters({ mode, meta, state, apply, onBack }: ScreenProps & { mo
   return (
     <div className="screen" style={{ gap: 22, paddingBottom: 0 }}>
       <header className="row">
-        <button className="icon-btn" onClick={onBack} aria-label="Back"><Back /></button>
+        <HomeButton onClick={onBack} />
         <h1 className="h2">
           {mode === 'dinner' ? 'Dinner' : 'A movie'}, <span className="hl">{dayWord}</span>
         </h1>
