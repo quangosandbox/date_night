@@ -3,6 +3,7 @@
 Two people swipe on restaurants or movies that are **actually bookable in the time window you chose**. The first spot you both say yes to gets booked automatically.
 
 - **Product spec & logic flow:** [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md)
+- **Launch checklist & what's next:** [`docs/LAUNCH_CHECKLIST.md`](docs/LAUNCH_CHECKLIST.md)
 - **Install on your iPhone:** [`docs/IOS.md`](docs/IOS.md) — `npm run ios` (needs a Mac with Xcode)
 
 ## Run it

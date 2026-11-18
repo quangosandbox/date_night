@@ -161,4 +161,4 @@ Palette from a sushi plate on peach: plate ink (#1A1414), tobiko red (#E8473F) f
 
 ## 11. Out of scope (MVP)
 
-Group dates (>2 people), payments in-app, reviews, chat, ride booking. Future: "Dinner + movie" combo sessions where the deck pairs a restaurant slot with a showtime 90+ min later nearby.
+Group dates (>2 people), payments in-app, chat, ride booking. Next mode: **shows, concerts & live events** (Ticketmaster Discovery API, ticket handoff; see `docs/LAUNCH_CHECKLIST.md`). Future: "Dinner + movie" combo sessions where the deck pairs a restaurant slot with a showtime 90+ min later nearby.
