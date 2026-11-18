@@ -1,3 +1,4 @@
+import type React from 'react';
 import type { Option } from '../../../shared/types.ts';
 
 // Generative card art: an oversized motif per cuisine/genre in the option's palette.
@@ -18,20 +19,29 @@ const MOTIFS: Record<string, string> = {
   compass: 'M100 80m-60 0a60 60 0 1 0 120 0a60 60 0 1 0-120 0M100 30l14 50-14 50-14-50z',
 };
 
-export function CardArt({ option, poster, className }: { option: Option; poster?: boolean; className?: string }) {
+export function CardArt({ option, poster, className, children }: { option: Option; poster?: boolean; className?: string; children?: React.ReactNode }) {
   const { bg, fg, motif } = option.art;
   let h = 0;
   for (const c of option.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const rot = (h % 40) - 20;
   const dx = (h % 60) - 10;
+  // Scattered "sesame seeds" for texture.
+  const seeds = Array.from({ length: 14 }, (_, i) => {
+    const k = (h >>> (i % 16)) + i * 7919;
+    return { x: (k * 37) % 200, y: (k * 53) % 160, r: (k * 11) % 180 };
+  });
   return (
     <div className={`card-art ${className ?? ''}`} style={{ background: bg, color: fg }}>
       <svg className="motif" viewBox="0 0 200 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-        <g transform={`translate(${dx} -6) rotate(${rot} 100 80) scale(1.25) translate(-20 -16)`} fill="none" stroke={fg} strokeOpacity="0.28" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <g transform={`translate(${dx} -6) rotate(${rot} 100 80) scale(1.25) translate(-20 -16)`} fill="none" stroke={fg} strokeOpacity="0.5" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round">
           <path d={MOTIFS[motif] ?? MOTIFS.star} />
         </g>
+        {seeds.map((sd, i) => (
+          <ellipse key={i} cx={sd.x} cy={sd.y} rx="2.6" ry="1.3" transform={`rotate(${sd.r} ${sd.x} ${sd.y})`} fill={fg} fillOpacity="0.45" />
+        ))}
       </svg>
       {poster && <div className="card-poster-title" style={{ color: fg }}>{option.title}</div>}
+      {children}
     </div>
   );
 }

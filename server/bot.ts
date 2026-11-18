@@ -26,7 +26,9 @@ export function scheduleBot(s: Session, members: User[]) {
     const roll = r();
     const like = roll < 0.42 || (next.rating >= 4.6 && roll < 0.7) || next.badges.length > 0;
     const vote = like ? (r() < 0.15 ? 'super' : 'like') : 'pass';
-    const outcome = applyVote(s, bot.id, next.id, vote);
+    // Sometimes heart a specific dish/detail, like a real person would.
+    const item = vote !== 'pass' && r() < 0.6 ? next.highlights[0]?.name : undefined;
+    const outcome = applyVote(s, bot.id, next.id, vote, item);
     hooks?.onChange(s);
     if (outcome.kind === 'matched') {
       await hooks?.onMatch(s, bot);

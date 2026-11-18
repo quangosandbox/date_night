@@ -85,14 +85,14 @@ export function PairUp({ state, apply }: ScreenProps) {
         <label htmlFor="code">Have a code?</label>
         <div className="row" style={{ gap: 8 }}>
           <input id="code" className="input code-input" maxLength={6} autoComplete="off" autoCapitalize="characters" value={code} onChange={(e) => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')); setError(''); }} placeholder="6 characters" />
-          <button className="btn btn-ghost btn-sm" style={{ height: 52, borderRadius: 14, background: 'var(--surface)' }} disabled={busy}>Join</button>
+          <button className="btn btn-dark btn-sm" style={{ height: 52, borderRadius: 14 }} disabled={busy}>Join</button>
         </div>
         {error && <div role="alert" style={{ color: 'var(--ember-text)', fontSize: 14 }}>{error}</div>}
       </form>
 
       <div className="spacer" />
       <button className="link-btn" onClick={() => api('/couple/demo', {}).then(apply)}>
-        No one handy? <span style={{ color: 'var(--text)', textDecoration: 'underline' }}>Try it with a demo partner</span>
+        No one handy? <span style={{ color: 'var(--ink)', textDecoration: 'underline', fontWeight: 800 }}>Try it with a demo partner</span>
       </button>
     </div>
   );

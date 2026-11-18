@@ -42,6 +42,26 @@ export interface Slot {
   label?: string; // e.g. "IMAX", "Bar seating"
 }
 
+export interface Review {
+  author: string;
+  stars: number;
+  text: string;
+  when: string;
+  source: string; // "Google", "Letterboxd"
+}
+
+export interface Highlight {
+  name: string;
+  desc: string;
+  price?: string;
+  tag?: string;
+}
+
+export interface Link {
+  label: string;
+  url: string;
+}
+
 export interface Option {
   id: string;
   kind: Mode;
@@ -54,6 +74,11 @@ export interface Option {
   providers: string[]; // ["resy", "opentable"]
   address?: string;
   distanceMi?: number;
+  price?: number; // 1–4 (dinner)
+  areaName: string; // the neighborhood you searched from
+  reviews: Review[];
+  highlights: Highlight[]; // menu items (dinner) or credits/vibe (movie)
+  links: Link[];
   art: { bg: string; fg: string; motif: string }; // generative card art
   badges: string[]; // "On both your watchlists"
   slots: Slot[];
@@ -90,7 +115,14 @@ export interface SessionView {
   myVotes: Record<string, Vote>;
   myProgress: number;
   partnerProgress: number;
-  match: { option: Option; slot: Slot | null; superBy: string[]; via: 'swipe' | 'fate' | 'nearMiss' } | null;
+  match: {
+    option: Option;
+    slot: Slot | null;
+    superBy: string[];
+    via: 'swipe' | 'fate' | 'nearMiss';
+    /** What each of you hearted on the card (Hinge-style), revealed only on a match. */
+    hearts: { userId: string; item: string }[];
+  } | null;
   booking: Booking | null;
   bookingError: string | null;
   nearMisses: NearMiss[];

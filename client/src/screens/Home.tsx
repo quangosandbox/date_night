@@ -15,10 +15,8 @@ export function Home({ state, apply, onPlan }: ScreenProps & { onPlan: (m: Mode)
   return (
     <div className="screen" style={{ gap: 28 }}>
       <header className="row" style={{ justifyContent: 'space-between' }}>
-        <div className="serif" style={{ fontSize: 26 }}>
-          Date <span className="italic ember">Night</span>
-        </div>
-        <button className="icon-btn" style={{ width: 'auto', height: 'auto', background: 'none' }} onClick={() => setSheet(true)} aria-label="Profile and settings">
+        <div className="logo"><span className="dot" aria-hidden="true" />date night</div>
+        <button className="icon-btn" style={{ width: 'auto', height: 'auto', background: 'none', border: 0 }} onClick={() => setSheet(true)} aria-label="Profile and settings">
           <Pair me={state.me} partner={state.partner} />
         </button>
       </header>
@@ -28,36 +26,38 @@ export function Home({ state, apply, onPlan }: ScreenProps & { onPlan: (m: Mode)
         <h1 className="h1">
           What are we
           <br />
-          <span className="italic">doing {when}?</span>
+          <span className="italic" style={{ color: 'var(--ember-text)' }}>doing {when}?</span>
         </h1>
       </div>
 
       <div className="stack" style={{ gap: 12 }}>
-        <button className="tile" onClick={() => onPlan('dinner')}>
+        <button className="tile" onClick={() => onPlan('dinner')} style={{ background: 'var(--paper)' }}>
+          <span className="plate" aria-hidden="true" />
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div className="tile-icon" style={{ background: 'var(--ember)', color: 'var(--ink)' }}><Fork size={24} /></div>
-            <Arrow size={22} className="muted" />
+            <Arrow size={24} />
           </div>
           <div>
             <div className="tile-title">Dinner</div>
             <div className="meta-sm" style={{ fontSize: 14, marginTop: 6 }}>Resy · OpenTable · Google</div>
           </div>
         </button>
-        <button className="tile" onClick={() => onPlan('movie')}>
+        <button className="tile" onClick={() => onPlan('movie')} style={{ background: 'var(--gold)' }}>
+          <span className="plate" aria-hidden="true" />
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div className="tile-icon" style={{ background: 'var(--gold)', color: 'var(--ink)' }}><Film size={24} /></div>
-            <Arrow size={22} className="muted" />
+            <div className="tile-icon" style={{ background: 'var(--paper)', color: 'var(--ink)' }}><Film size={24} /></div>
+            <Arrow size={24} />
           </div>
           <div>
             <div className="tile-title">A movie</div>
-            <div className="meta-sm" style={{ fontSize: 14, marginTop: 6 }}>Showtimes nearby · Letterboxd ratings</div>
+            <div className="meta-sm" style={{ fontSize: 14, marginTop: 6, color: 'var(--ink)' }}>Showtimes nearby · Letterboxd ratings</div>
           </div>
         </button>
       </div>
 
       {!state.me.letterboxd && (
         <button className="list-item outline" style={{ width: '100%', textAlign: 'left', color: 'var(--text)' }} onClick={() => setSheet(true)}>
-          <div className="thumb" style={{ background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Film size={22} className="gold" /></div>
+          <div className="thumb" style={{ background: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Film size={22} /></div>
           <div className="grow">
             <div className="title-sm">Connect Letterboxd</div>
             <div className="meta-sm">Films on both your watchlists float to the top.</div>

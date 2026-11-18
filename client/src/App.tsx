@@ -23,6 +23,11 @@ export function App() {
   const sessionId = state?.session?.id;
   useEffect(() => setPlanning(null), [sessionId]);
 
+  const screenKey = !state ? 'welcome' : !state.partner ? 'pair' : state.session ? `${state.session.id}:${state.session.status}` : planning ?? 'home';
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screenKey]);
+
   let screen;
   if (loading) screen = <div className="screen" aria-busy="true" />;
   else if (!state) screen = <Welcome apply={apply} />;

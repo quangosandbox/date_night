@@ -3,7 +3,7 @@ import type { ScreenProps } from '../App.tsx';
 import { api, fmtDay, fmtTime, fmtTimeShort, icsFor } from '../api.ts';
 import { Pair } from '../components/Avatar.tsx';
 import { CardArt } from '../components/CardArt.tsx';
-import { Calendar, Check, Pin } from '../components/Icons.tsx';
+import { Calendar, Check, Heart, Pin } from '../components/Icons.tsx';
 import { endSession } from './Home.tsx';
 
 const PROVIDER_NAMES: Record<string, string> = { resy: 'Resy', opentable: 'OpenTable', atom: 'Atom', fandango: 'Fandango' };
@@ -56,8 +56,8 @@ export function Match({ state, apply }: ScreenProps) {
       <Confetti />
       <div className="stack" style={{ alignItems: 'center', textAlign: 'center', gap: 14, position: 'relative' }}>
         <Pair me={state.me} partner={partner} size="lg" />
-        <h1 className="h1" style={{ fontSize: 50, lineHeight: 0.95 }}>{headline}</h1>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 500 }}>{why}</p>
+        <h1 className="h1" style={{ fontSize: 54, lineHeight: 0.92 }}>{headline}</h1>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{why}</p>
       </div>
 
       <section className="match-card" style={{ position: 'relative' }} aria-labelledby="match-title">
@@ -78,6 +78,16 @@ export function Match({ state, apply }: ScreenProps) {
             <div className="stat"><div className="k">Via</div><div className="v">{slot ? PROVIDER_NAMES[slot.provider] ?? slot.provider : '—'}</div></div>
           </div>
 
+          {m.hearts.length > 0 && (
+            <div className="stack" style={{ gap: 6 }}>
+              {m.hearts.map((h) => (
+                <div key={h.userId} className="heart-note" style={{ fontWeight: 600 }}>
+                  <Heart size={16} className="ember" />
+                  <span>{h.userId === state.me.id ? 'You' : partner.name} hearted {/review|vibe|pitch/.test(h.item) ? h.item : <b>{h.item}</b>}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {booking ? (
             <div className="status-ok" role="status">
               <Check size={18} strokeWidth={2.4} /> Booked · Confirmation {booking.confirmation}
@@ -128,7 +138,9 @@ function Confetti() {
         left: Math.random() * 100,
         delay: Math.random() * 0.6,
         dur: 1.8 + Math.random() * 1.4,
-        color: ['#17111C', '#F5C451', '#F7F1EA'][i % 3],
+        color: ['#F0C53E', '#FFF7EE', '#9DAF6E', '#1A1414'][i % 4],
+        round: i % 3 === 0,
+        size: 8 + Math.random() * 8,
         rot: Math.random() * 180,
       })),
     [],
@@ -136,7 +148,7 @@ function Confetti() {
   return (
     <div className="confetti" aria-hidden="true">
       {bits.map((b, i) => (
-        <i key={i} style={{ left: `${b.left}%`, background: b.color, animationDuration: `${b.dur}s`, animationDelay: `${b.delay}s`, transform: `rotate(${b.rot}deg)` }} />
+        <i key={i} style={{ left: `${b.left}%`, width: b.size, height: b.round ? b.size : b.size * 1.6, borderRadius: b.round ? '50%' : 3, background: b.color, animationDuration: `${b.dur}s`, animationDelay: `${b.delay}s`, transform: `rotate(${b.rot}deg)` }} />
       ))}
     </div>
   );

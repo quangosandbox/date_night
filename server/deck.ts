@@ -4,32 +4,36 @@ import type { Filters, Mode, Option, Slot, User } from '../shared/types.ts';
 import { AREAS } from './providers/mockData.ts';
 import type { Providers } from './providers/index.ts';
 import { PROVIDER_LABELS } from './providers/index.ts';
+import { filmContent, venueContent } from './providers/mockContent.ts';
 import { milesBetween, toMinutes } from './util.ts';
 
 export const DECK_SIZE = 30;
 
+// Card art palettes, taken from the app's plate-on-peach palette.
+const INK = '#1A1414';
+const CREAM = '#FFF7EE';
 const CUISINE_ART: Record<string, { bg: string; fg: string; motif: string }> = {
-  Italian: { bg: '#5B2A2A', fg: '#F6D3B8', motif: 'pasta' },
-  Japanese: { bg: '#20343F', fg: '#F1E3CF', motif: 'wave' },
-  Mexican: { bg: '#5A3A1C', fg: '#F8D27A', motif: 'sun' },
-  French: { bg: '#2B2F4A', fg: '#E9DCC7', motif: 'wine' },
-  Thai: { bg: '#2F4A34', fg: '#F2E1A0', motif: 'leaf' },
-  Korean: { bg: '#4A2433', fg: '#F7C9B4', motif: 'flame' },
-  Indian: { bg: '#5C3416', fg: '#FFD9A0', motif: 'sun' },
-  Mediterranean: { bg: '#1F3E47', fg: '#EFE6D2', motif: 'wave' },
-  American: { bg: '#3E2C24', fg: '#F2D4B6', motif: 'flame' },
-  Chinese: { bg: '#4D1F1F', fg: '#F6CF8B', motif: 'lantern' },
+  Italian: { bg: '#E8473F', fg: INK, motif: 'pasta' },
+  Japanese: { bg: INK, fg: '#EC9177', motif: 'wave' },
+  Mexican: { bg: '#F0C53E', fg: INK, motif: 'sun' },
+  French: { bg: '#EC9177', fg: INK, motif: 'wine' },
+  Thai: { bg: '#9DAF6E', fg: INK, motif: 'leaf' },
+  Korean: { bg: '#EB6B3A', fg: INK, motif: 'flame' },
+  Indian: { bg: '#F0C53E', fg: INK, motif: 'sun' },
+  Mediterranean: { bg: '#9DAF6E', fg: INK, motif: 'wave' },
+  American: { bg: '#EB6B3A', fg: INK, motif: 'flame' },
+  Chinese: { bg: INK, fg: '#E8473F', motif: 'lantern' },
 };
 
 const GENRE_ART: Record<string, { bg: string; fg: string; motif: string }> = {
-  Drama: { bg: '#2D2440', fg: '#EADFF2', motif: 'moon' },
-  Comedy: { bg: '#5A4310', fg: '#FFE7A3', motif: 'sun' },
-  Thriller: { bg: '#1C2630', fg: '#D9E6EE', motif: 'eye' },
-  Romance: { bg: '#5A2234', fg: '#FFD0DA', motif: 'heart' },
-  'Sci-Fi': { bg: '#13303A', fg: '#BDEBF2', motif: 'orbit' },
-  Horror: { bg: '#2A1414', fg: '#F0C2C2', motif: 'eye' },
-  Animation: { bg: '#24404A', fg: '#FFE2B8', motif: 'star' },
-  Documentary: { bg: '#33362A', fg: '#E8E6CF', motif: 'compass' },
+  Drama: { bg: INK, fg: CREAM, motif: 'moon' },
+  Comedy: { bg: '#F0C53E', fg: INK, motif: 'sun' },
+  Thriller: { bg: INK, fg: '#E8473F', motif: 'eye' },
+  Romance: { bg: '#EC9177', fg: INK, motif: 'heart' },
+  'Sci-Fi': { bg: '#9DAF6E', fg: INK, motif: 'orbit' },
+  Horror: { bg: '#E8473F', fg: INK, motif: 'eye' },
+  Animation: { bg: '#EB6B3A', fg: INK, motif: 'star' },
+  Documentary: { bg: '#EEE0CA', fg: INK, motif: 'compass' },
 };
 
 export const inWindow = (time: string, f: Filters) => {
@@ -88,6 +92,7 @@ async function buildDinner(f: Filters, area: (typeof AREAS)[number], p: Provider
       const slots = [...byTime.values()].sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
 
       const distanceMi = Math.round(milesBetween(area, v) * 10) / 10;
+      const content = venueContent(v);
       const confidence = (v.rating * v.reviews + 4.2 * 300) / (v.reviews + 300);
       const option: Option & { _score: number } = {
         id: v.id,
@@ -101,6 +106,9 @@ async function buildDinner(f: Filters, area: (typeof AREAS)[number], p: Provider
         providers: Object.keys(v.refs).map((k) => PROVIDER_LABELS[k] ?? k),
         address: v.address,
         distanceMi,
+        price: v.price,
+        areaName: area.name,
+        ...content,
         art: CUISINE_ART[v.cuisine] ?? { bg: '#3A2E44', fg: '#F7F1EA', motif: 'star' },
         badges: [],
         slots,
@@ -126,6 +134,10 @@ async function buildMovies(f: Filters, area: (typeof AREAS)[number], members: Us
         .filter((s) => s.filmId === film.id && inWindow(s.slot.time, f) && (!f.formats.length || f.formats.includes(s.format)))
         .map((s) => s.slot)
         .sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
+      const nearest = showtimes
+        .filter((s) => s.filmId === film.id && slots.some((x) => x.id === s.slot.id))
+        .map((s) => ({ s, d: milesBetween(area, s) }))
+        .sort((a, b) => a.d - b.d)[0];
       const onLists = watchlists.filter((w) => w.includes(film.id)).length;
       const badges: string[] = [];
       if (onLists === 2) badges.push('On both your watchlists');
@@ -142,6 +154,10 @@ async function buildMovies(f: Filters, area: (typeof AREAS)[number], members: Us
         ratingSource: 'Letterboxd',
         tags: [String(film.year)],
         providers: [...new Set(slots.map((s) => PROVIDER_LABELS[s.provider] ?? s.provider))],
+        areaName: area.name,
+        address: nearest ? `${nearest.s.theaterName} · ${nearest.s.address}` : undefined,
+        distanceMi: nearest ? Math.round(nearest.d * 10) / 10 : undefined,
+        ...filmContent(film),
         art: GENRE_ART[film.genres[0]] ?? { bg: '#3A2E44', fg: '#F7F1EA', motif: 'star' },
         badges,
         slots,

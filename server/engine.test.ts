@@ -12,7 +12,7 @@ const filters: Filters = {
 const slot = (time: string, provider = 'resy'): Slot => ({ id: `${provider}:${time}`, time, provider });
 const opt = (id: string, slots: Slot[] = [slot('19:30'), slot('20:00'), slot('20:45')]): Option => ({
   id, kind: 'dinner', title: id, subtitle: '', blurb: '', rating: 4.5, ratingSource: 'Google', tags: [], providers: ['Resy'],
-  art: { bg: '#000', fg: '#fff', motif: 'star' }, badges: [], slots,
+  art: { bg: '#000', fg: '#fff', motif: 'star' }, badges: [], slots, areaName: 'X', reviews: [], highlights: [], links: [],
 });
 
 const session = (deck = [opt('a'), opt('b'), opt('c')]) =>
@@ -60,6 +60,14 @@ describe('matching', () => {
     expect(acceptNearMiss(s, 'u1', 'a')).toBe(false); // partner didn't like 'a'
     expect(acceptNearMiss(s, 'u1', 'b')).toBe(true);
     expect(s.match).toMatchObject({ optionId: 'b', via: 'nearMiss' });
+  });
+
+  it('reveals hearted items only on a match', () => {
+    const s = session();
+    applyVote(s, 'u1', 'a', 'like', 'Cacio e pepe');
+    expect(toView(s, 'u2').match).toBeNull();
+    applyVote(s, 'u2', 'a', 'like');
+    expect(toView(s, 'u2').match?.hearts).toEqual([{ userId: 'u1', item: 'Cacio e pepe' }]);
   });
 
   it('never exposes partner votes in the view', () => {

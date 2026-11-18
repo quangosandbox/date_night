@@ -25,14 +25,12 @@ export function Welcome({ apply }: { apply: (s: AppState) => void }) {
 
   return (
     <form className="screen" onSubmit={submit} style={{ paddingTop: 64 }}>
-      <div className="serif" style={{ fontSize: 26 }}>
-        Date <span className="italic ember">Night</span>
-      </div>
+      <div className="logo"><span className="dot" aria-hidden="true" />date night</div>
       <div className="stack" style={{ gap: 14 }}>
         <h1 className="h1" style={{ fontSize: 52 }}>
           Stop deciding.
           <br />
-          <span className="italic">Start swiping.</span>
+          <span className="italic" style={{ background: 'var(--ember)', padding: '0 10px', borderRadius: 14, border: '2px solid var(--ink)', display: 'inline-block', transform: 'rotate(-2deg)', marginTop: 6 }}>Start swiping.</span>
         </h1>
         <p className="lede">You and your person swipe on spots that are actually open tonight. The first place you both say yes to gets booked. That's it.</p>
       </div>
@@ -44,7 +42,7 @@ export function Welcome({ apply }: { apply: (s: AppState) => void }) {
           ['Match & we book', 'Resy, OpenTable or tickets — done for you.'],
         ].map(([t, d], i) => (
           <li key={t} className="row" style={{ alignItems: 'flex-start' }}>
-            <span className="avatar" style={{ background: i === 1 ? 'var(--gold)' : 'var(--ember)', width: 28, height: 28, fontSize: 13, border: 0 }}>{i + 1}</span>
+            <span className="avatar" style={{ background: ['var(--ember)', 'var(--gold)', 'var(--green)'][i], width: 30, height: 30, fontSize: 13, flexShrink: 0 }}>{i + 1}</span>
             <div>
               <div style={{ fontWeight: 600 }}>{t}</div>
               <div className="meta-sm">{d}</div>
@@ -63,7 +61,7 @@ export function Welcome({ apply }: { apply: (s: AppState) => void }) {
           <label htmlFor="phone">Phone <span className="muted" style={{ fontWeight: 400 }}>· for reservations</span></label>
           <input id="phone" className="input" type="tel" autoComplete="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 555-0123" />
         </div>
-        {error && <div role="alert" style={{ color: 'var(--ember-text)', fontSize: 14 }}>{error}</div>}
+        {error && <div role="alert" style={{ color: 'var(--ember-text)', fontSize: 14, fontWeight: 700 }}>{error}</div>}
         <button className="btn btn-primary btn-block" disabled={busy}>
           Get started <Arrow />
         </button>

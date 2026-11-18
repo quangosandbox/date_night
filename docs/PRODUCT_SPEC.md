@@ -114,24 +114,34 @@ Architecture consequence: every source sits behind a **provider adapter interfac
 2. **Pair up** — create (show code) / join (enter code). Waiting state animates until partner joins.
 3. **Home** — "Plan tonight": two big tiles (Dinner / Movie), recent bookings.
 4. **Filters** — one screen, defaults pre-filled, single primary CTA "Start swiping".
-5. **Swipe deck** — full-bleed card, photo, name, rating, price/genre, distance, **available time chips**. Buttons: pass / super / like. Progress "12 of 30". Partner status pill ("Sam is swiping").
+5. **Swipe deck** — Tinder-style stack where each card is a scrollable, Hinge-style profile:
+   - Hero (photo/poster, name, cuisine · neighborhood, rating sticker, vibe tags)
+   - Quick facts: price level, distance, open times in window, booking provider
+   - "The vibe" prompt (blurb), "Order this" menu highlights with prices, "What people say" review quotes
+   - Times in your window, a mini map with distance from your chosen neighborhood + address, links (directions, menu, trailer, Letterboxd)
+   - **Heart a specific thing** (a dish, a review, the vibe) to like the card with a note; notes are revealed to your partner only on a match ("Sam hearted the cacio e pepe").
+   - Swipe sideways to decide, scroll vertically to read. Buttons: pass / must-try / like. Partner progress pill.
 6. **It's a match** — celebratory, the option, chosen slot, auto-booking spinner → confirmed.
 7. **Booked** — confirmation, calendar, directions, "Plan another".
 8. **No match** — near misses, widen, let fate decide.
 
-## 8. Non-functional
+## 8. Visual design
+
+Playful, sticker-like UI on a peach background inspired by a sushi plate: plate-black ink (#1A1414) for outlines and hard drop shadows, tobiko red (#E8473F) for "yes", tamago yellow (#F0C53E) for must-try and ratings, cucumber green (#9DAF6E) for confirmations, plus orange, salmon and rice-cream accents. Type: Fraunces (soft, wonky display) + DM Sans.
+
+## 9. Non-functional
 
 - Mobile-first web app (PWA-installable); works one-handed; 44px+ touch targets; full keyboard support (← → ↑ on desktop).
 - Real-time updates < 1s via SSE; clients re-sync state on reconnect.
 - Swipes are private: API never returns partner's votes, only match results and partner progress count.
 - Idempotent booking (one booking per session, guarded server-side).
 
-## 9. Metrics
+## 10. Metrics
 
 - Time from session start → booking (target: < 3 min median).
 - Match rate per session; % sessions ending in "let fate decide".
 - Booking failure rate after match (target < 2% thanks to availability-first deck).
 
-## 10. Out of scope (MVP)
+## 11. Out of scope (MVP)
 
 Group dates (>2 people), payments in-app, reviews, chat, ride booking. Future: "Dinner + movie" combo sessions where the deck pairs a restaurant slot with a showtime 90+ min later nearby.

@@ -26,7 +26,7 @@ export function NoMatch({ state, apply }: ScreenProps) {
     <div className="screen" style={{ paddingTop: 56 }}>
       <div className="stack">
         <h1 className="h1" style={{ fontSize: 40 }}>
-          So close. <span className="italic gold">Pick a tiebreaker.</span>
+          So close. <span className="italic" style={{ background: 'var(--gold)', padding: '0 8px', borderRadius: 12, border: '2px solid var(--ink)', display: 'inline-block', transform: 'rotate(-1.5deg)' }}>Pick a tiebreaker.</span>
         </h1>
         <p className="lede">
           {s.deck.length
@@ -42,7 +42,7 @@ export function NoMatch({ state, apply }: ScreenProps) {
               <div className="thumb"><CardArt option={n.option} /></div>
               <div className="grow">
                 <div className="title-sm">{n.option.title}</div>
-                <div className="meta-sm" style={n.super ? { color: 'var(--gold)' } : undefined}>
+                <div className="meta-sm" style={n.super ? { color: 'var(--ember-text)', fontWeight: 700 } : undefined}>
                   {n.likedBy === 'partner' ? `${partner.name}${n.super ? "'s must-try" : ' liked'}` : n.super ? 'Your must-try' : 'You liked'} · {best(n.option.slots)}
                 </div>
               </div>

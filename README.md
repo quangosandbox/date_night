@@ -31,6 +31,7 @@ client/ (React, mobile-first PWA)      server/ (Express)
         └──────────────────────┘         providers/  adapter interfaces + mock Google/Resy/OpenTable/Letterboxd/showtimes
 ```
 
+- Each card is a **Hinge-style scrollable profile** (reviews, menu highlights, price, rating, distance + mini map, links) inside a **Tinder-style swipe stack**. Heart a specific dish or review to like with a note — it's revealed to your partner only if you match.
 - Both partners get the **same deck in the same order**; votes are private (the API only exposes your own votes and your partner's progress count).
 - A match happens the instant the second partner says yes. With auto-book on, the server books the slot closest to the middle of your window, falling back to the next slot if one vanished, and drops the option (back to swiping) if none are left.
 - Run out of cards? You get near misses ("I'm in" on your partner's likes), one-tap widening (±1 hour, +1.5 miles, any cuisine), or **Let fate decide**.

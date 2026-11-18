@@ -14,6 +14,8 @@ export interface Session {
   status: SessionStatus;
   deck: Option[];
   votes: Record<string, Record<string, Vote>>;
+  /** Hinge-style: the dish/review/detail a person hearted when they liked an option. */
+  notes?: Record<string, Record<string, string>>;
   match: { optionId: string; via: 'swipe' | 'fate' | 'nearMiss'; superBy: string[] } | null;
   booking: Booking | null;
   bookingError: string | null;
@@ -36,13 +38,17 @@ export function newSession(init: Omit<Session, 'status' | 'votes' | 'match' | 'b
 export type VoteOutcome = { kind: 'ignored' } | { kind: 'recorded' } | { kind: 'matched'; optionId: string } | { kind: 'exhausted' };
 
 /** Record a vote. The second "yes" on the same option creates the match, atomically. */
-export function applyVote(s: Session, userId: string, optionId: string, vote: Vote): VoteOutcome {
+export function applyVote(s: Session, userId: string, optionId: string, vote: Vote, note?: string): VoteOutcome {
   if (s.status !== 'swiping') return { kind: 'ignored' };
   if (!s.memberIds.includes(userId)) return { kind: 'ignored' };
   if (!s.deck.some((o) => o.id === optionId)) return { kind: 'ignored' };
 
   s.votes[userId] ??= {};
   s.votes[userId][optionId] = vote;
+  s.notes ??= {};
+  s.notes[userId] ??= {};
+  if (note && vote !== 'pass') s.notes[userId][optionId] = note.slice(0, 80);
+  else delete s.notes[userId][optionId];
   s.bookingError = null;
 
   if (isYes(vote)) {
@@ -204,6 +210,9 @@ export function toView(s: Session, me: string): SessionView {
             slot: s.booking?.slot ?? rankSlots(option.slots, s.filters)[0] ?? null,
             superBy: s.match.superBy,
             via: s.match.via,
+            hearts: s.memberIds
+              .map((m) => ({ userId: m, item: s.notes?.[m]?.[option.id] ?? '' }))
+              .filter((h) => h.item),
           }
         : null,
     booking: s.booking,

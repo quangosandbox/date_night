@@ -77,7 +77,7 @@ function touch(s: Session | null, extraUsers: string[] = []) {
   notifyUsers([...(s?.memberIds ?? []), ...extraUsers]);
 }
 
-const COLORS = ['#FF6A4D', '#F5C451', '#8EC5FF', '#B59CFF', '#7FD6A8'];
+const COLORS = ['#EC9177', '#F0C53E', '#9DAF6E'];
 
 function sanitizeFilters(input: Partial<Filters>, mode: Mode): Filters {
   const today = new Date().toISOString().slice(0, 10);
@@ -312,7 +312,8 @@ app.post(
     if (!s) return;
     const vote = req.body?.vote as Vote;
     if (!['like', 'pass', 'super'].includes(vote)) return res.status(400).json({ error: 'Bad vote' });
-    const outcome = applyVote(s, req.user.id, String(req.body?.optionId), vote);
+    const note = typeof req.body?.note === 'string' ? req.body.note : undefined;
+    const outcome = applyVote(s, req.user.id, String(req.body?.optionId), vote, note);
     if (outcome.kind === 'matched') {
       touch(s); // show the match screen right away, then book
       await runAutoBook(s, req.user);
