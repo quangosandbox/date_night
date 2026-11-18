@@ -90,7 +90,21 @@ draft ──(host confirms filters)──▶ swiping ──(mutual like)──�
 4. On success: confirmation code, add-to-calendar, directions, and "Share with partner" (both already see it).
 5. Movies: tickets require payment; in MVP we create a hold/deep link to checkout with seats pre-selected. Restaurants: most bookings need no payment (card-guarantee venues prompt for card on file).
 
-### 5.6 Deck exhausted
+### 5.6 After the date: rate it (Beli + Yelp)
+1. Home shows "psst — how was it?" for any booked date you haven't rated. Each partner rates privately; you see your partner's take only after you've rated.
+2. **Verdict**: Loved it / It was fine / Not for us.
+3. **Rank it (Beli-style)**: up to 3 "Which night was better?" comparisons against your past dates with the same verdict place it in your ranked list (binary insertion). Your **score (0–10)** comes from its position: loved 6.7–10, fine 3.4–6.6, not for us 0–3.3, so scores shift as your list grows.
+4. **Details (Yelp-style)**: tags (Romantic, Too loud, Great service…), the best dish, a private note.
+5. Result: your score, your partner's (once in), a couple score, and **Our list** on Home.
+
+### 5.7 Learning loop
+- Each couple has a **taste profile**: weights over features (cuisine, price level, vibe tags; genres for movies).
+- **Explicit signal (strong)**: a rated date moves each feature by (avg score − 5) / 5.
+- **Implicit signal (weak)**: every swipe — like +0.12, must-try +0.25, pass −0.06.
+- **Deck ranking** adds `0.5·tanh(Σweights/1.5)`; places you rated ≥ 7 get a "You rated it 8.4" badge and a boost; places you both rated below 3.4 never come back.
+- Cards explain themselves: "↳ because you loved Baan Noi", "↳ you two keep picking Thai". Home shows what's been learned (into / not into).
+
+### 5.8 Deck exhausted
 When both partners have swiped every card with no match:
 - **Near misses**: options one of you liked (super likes first). Either partner can tap "I'd go there" to convert a partner's like into a match.
 - **Widen**: one-tap +30 min window, +1 mi radius, or clear cuisine filter → rebuild deck (excluding already-passed-by-both).
@@ -100,7 +114,7 @@ When both partners have swiped every card with no match:
 
 | Source | Use | Access |
 |---|---|---|
-| **Google Places API (New)** | Restaurant discovery, photos, ratings, hours, address | Public, API key, pay-as-you-go |
+| **Google Places API (New)** | Restaurant discovery, **listing photos**, ratings, reviews, website | Public, API key. Adapter built (`server/providers/googlePlaces.ts`); turns on with `GOOGLE_PLACES_API_KEY`. Photos proxied so the key never reaches the client. |
 | **Resy** | Availability + booking | No public API. Requires a partnership (Resy for Partners / Amex). |
 | **OpenTable** | Availability + booking | Partner/Affiliate API, application required. Fallback: deep link to booking page with date/time/party pre-filled. |
 | **Letterboxd** | Film ratings, posters, **users' watchlists** | API access by application only. Fallback: TMDB for metadata + user-uploaded Letterboxd CSV export for watchlists. |
@@ -125,9 +139,12 @@ Architecture consequence: every source sits behind a **provider adapter interfac
 7. **Booked** — confirmation, calendar, directions, "Plan another".
 8. **No match** — near misses, widen, let fate decide.
 
-## 8. Visual design
+## 8. Visual design — "izakaya pop"
 
-Playful, sticker-like UI on a peach background inspired by a sushi plate: plate-black ink (#1A1414) for outlines and hard drop shadows, tobiko red (#E8473F) for "yes", tamago yellow (#F0C53E) for must-try and ratings, cucumber green (#9DAF6E) for confirmations, plus orange, salmon and rice-cream accents. Type: Fraunces (soft, wonky display) + DM Sans.
+Palette from a sushi plate on peach: plate ink (#1A1414), tobiko red (#E8473F) for "yes", tamago (#F0C53E) for must-try and ratings, cucumber (#9DAF6E) for good things, salmon and rice-cream accents.
+- **Type**: Dela Gothic One (chunky Japanese-poster display), Gochi Hand (handwritten margin notes: "↳ because you loved…", "psst — how was it?"), Instrument Sans (body), DM Mono (tickets, prices, codes).
+- **Signature moments**: chopsticks as the mark (two sticks = two people) that click together on a match ("Chopsticks down."); hanko-seal stamps (YES please / NAH / MUST TRY) while swiping; the booking as a perforated ticket stub with a barcode; plates — round photo crops with a black rim — for dishes, lists and comparisons; falling-sushi confetti.
+- **Photos**: listing photos (Google → Resy → OpenTable) fill the hero and a second Hinge-style photo mid-profile, credited by source; illustrated art when none load.
 
 ## 9. Non-functional
 

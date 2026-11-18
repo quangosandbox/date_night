@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ScreenProps } from '../App.tsx';
 import { api, fmtTime } from '../api.ts';
-import { CardArt } from '../components/CardArt.tsx';
+import { Plate } from '../components/Brand.tsx';
 import { Dice } from '../components/Icons.tsx';
 import { endSession } from './Home.tsx';
 
@@ -23,10 +23,10 @@ export function NoMatch({ state, apply }: ScreenProps) {
   const isMovie = s.mode === 'movie';
 
   return (
-    <div className="screen" style={{ paddingTop: 56 }}>
+    <div className="screen" style={{ paddingTop: 40 }}>
       <div className="stack">
         <h1 className="h1" style={{ fontSize: 40 }}>
-          So close. <span className="italic" style={{ background: 'var(--gold)', padding: '0 8px', borderRadius: 12, border: '2px solid var(--ink)', display: 'inline-block', transform: 'rotate(-1.5deg)' }}>Pick a tiebreaker.</span>
+          So close. <span className="hl">Tiebreaker time.</span>
         </h1>
         <p className="lede">
           {s.deck.length
@@ -39,7 +39,7 @@ export function NoMatch({ state, apply }: ScreenProps) {
         <ul className="stack" style={{ listStyle: 'none', margin: 0, padding: 0, gap: 8 }}>
           {s.nearMisses.slice(0, 5).map((n) => (
             <li key={n.option.id} className="list-item">
-              <div className="thumb"><CardArt option={n.option} /></div>
+              <Plate option={n.option} size={52} />
               <div className="grow">
                 <div className="title-sm">{n.option.title}</div>
                 <div className="meta-sm" style={n.super ? { color: 'var(--ember-text)', fontWeight: 700 } : undefined}>
@@ -47,7 +47,7 @@ export function NoMatch({ state, apply }: ScreenProps) {
                 </div>
               </div>
               {n.likedBy === 'partner' ? (
-                <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => run(n.option.id, '/accept', { optionId: n.option.id })}>
+                <button className="btn btn-red btn-sm" disabled={!!busy} onClick={() => run(n.option.id, '/accept', { optionId: n.option.id })}>
                   {busy === n.option.id ? <span className="spinner" /> : "I'm in"}
                 </button>
               ) : (

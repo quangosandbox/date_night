@@ -3,6 +3,7 @@
 import type { Area, Filters, Slot } from '../../shared/types.ts';
 import { fromMinutes, hash, milesBetween, rng } from '../util.ts';
 import { AREAS, FILMS, THEATERS, VENUES } from './mockData.ts';
+import { sampleDishPhoto, sampleRoomPhoto } from './samplePhotos.ts';
 import type {
   BookResult,
   BookingDetails,
@@ -48,6 +49,7 @@ export const mockPlaces: VenueDiscovery = {
         blurb: v.blurb,
         tags: v.tags,
         refs: Object.fromEntries(v.providers.map((p) => [p, `${p}-${v.id}`])),
+        photos: [sampleDishPhoto(v.id, v.cuisine)],
       };
     }).filter((v) => milesBetween(area, v) <= radiusMi);
   },
@@ -76,7 +78,10 @@ function mockReservations(id: string, label: string, prefix: string, density: nu
     async book(_venueRef: string, slot: Slot, _details: BookingDetails): Promise<BookResult> {
       if (taken.has(slot.id)) return { ok: false, reason: 'slot_gone' };
       taken.add(slot.id);
-      return { ok: true, confirmation: confirmation(prefix, slot.id) };
+      return { ok: true, confirmation: confirmation(prefix, slot.id), demo: true };
+    },
+    async listingPhotos(_venueRef: string, venue: Venue) {
+      return id === 'resy' || !venue.refs.resy ? [sampleRoomPhoto(venue.id)] : [];
     },
   };
 }
@@ -136,7 +141,7 @@ export const mockShowtimes: ShowtimeProvider = {
     return {
       ok: true,
       confirmation: confirmation(slot.provider === 'atom' ? 'AT' : 'FD', slot.id),
-      deepLink: undefined,
+      demo: true,
     };
   },
 };

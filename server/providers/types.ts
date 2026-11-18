@@ -1,7 +1,7 @@
 // Provider adapter contracts. Each external service (Google Places, Resy, OpenTable,
 // Letterboxd, a showtime/ticketing provider) sits behind one of these so a real
 // integration can replace a mock without touching session or matching logic.
-import type { Area, Filters, Slot } from '../../shared/types.ts';
+import type { Area, Filters, Photo, Review, Slot } from '../../shared/types.ts';
 
 export interface Venue {
   id: string;
@@ -17,6 +17,9 @@ export interface Venue {
   tags: string[];
   /** Reservation-provider ids keyed by provider, e.g. { resy: '1234', opentable: '987' } */
   refs: Record<string, string>;
+  photos?: Photo[];
+  reviewList?: Review[]; // real reviews (Google), when available
+  website?: string;
 }
 
 /** Discovery: who is out there (Google Places in production). */
@@ -33,7 +36,7 @@ export interface BookingDetails {
 }
 
 export type BookResult =
-  | { ok: true; confirmation: string; deepLink?: string }
+  | { ok: true; confirmation: string; deepLink?: string; demo?: boolean }
   | { ok: false; reason: 'slot_gone' | 'provider_error'; message?: string };
 
 /** Reservations: Resy, OpenTable. */
@@ -42,6 +45,8 @@ export interface ReservationProvider {
   label: string;
   availability(venueRef: string, venue: Venue, filters: Filters): Promise<Slot[]>;
   book(venueRef: string, slot: Slot, details: BookingDetails): Promise<BookResult>;
+  /** Listing photos from the provider's venue page, when the API exposes them. */
+  listingPhotos?(venueRef: string, venue: Venue): Promise<Photo[]>;
 }
 
 export interface Film {

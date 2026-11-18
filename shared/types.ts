@@ -12,6 +12,8 @@ export interface User {
   coupleId: string | null;
   letterboxd?: string;
   isBot?: boolean;
+  /** Ranked best → worst; verdict buckets keep loved above fine above meh. */
+  rankings?: { optionId: string; title: string; kind: Mode; verdict: Verdict; art: Option['art']; photo?: string }[];
 }
 
 export interface Couple {
@@ -62,6 +64,12 @@ export interface Link {
   url: string;
 }
 
+export interface Photo {
+  url: string;
+  source: string; // "Google", "Resy", "OpenTable", "Sample"
+  attribution?: string;
+}
+
 export interface Option {
   id: string;
   kind: Mode;
@@ -79,6 +87,8 @@ export interface Option {
   reviews: Review[];
   highlights: Highlight[]; // menu items (dinner) or credits/vibe (movie)
   links: Link[];
+  photos: Photo[]; // listing photos (Google / Resy / OpenTable); empty → generative art
+  why?: string; // learned-taste reason, e.g. "Because you loved Baan Noi"
   art: { bg: string; fg: string; motif: string }; // generative card art
   badges: string[]; // "On both your watchlists"
   slots: Slot[];
@@ -96,6 +106,50 @@ export interface Booking {
   partySize: number;
   date: string;
   address?: string;
+  option?: Option; // snapshot for the post-date review
+  demo?: boolean; // true when no real provider took the reservation
+}
+
+export type Verdict = 'loved' | 'fine' | 'meh';
+
+/** A partner's post-date review (Beli-style verdict + ranking, Yelp-style details). */
+export interface Rating {
+  userId: string;
+  verdict: Verdict;
+  score: number; // 0–10, derived from where it sits in your ranked list
+  tags: string[];
+  bestItem?: string;
+  note?: string;
+  at: string;
+}
+
+export interface RankedEntry {
+  optionId: string;
+  title: string;
+  kind: Mode;
+  verdict: Verdict;
+  score: number;
+  art: Option['art'];
+  photo?: string;
+}
+
+export interface OurPlace {
+  confirmation: string;
+  optionId: string;
+  title: string;
+  kind: Mode;
+  date: string;
+  art: Option['art'];
+  photo?: string;
+  mine?: Rating;
+  partner?: Rating; // only revealed once you've rated too
+  together?: number; // average of both scores
+}
+
+export interface Taste {
+  into: string[];
+  notInto: string[];
+  ratedCount: number;
 }
 
 export interface NearMiss {
@@ -135,6 +189,11 @@ export interface AppState {
   couple: Couple | null;
   session: SessionView | null;
   history: Booking[];
+  toRate: Booking[]; // dates you haven't reviewed yet
+  ourList: OurPlace[]; // your rated dates, best first
+  myRanking: RankedEntry[]; // your personal ranked list (for Beli-style comparisons)
+  taste: Taste;
+  localMode?: boolean; // running fully on-device (no server)
 }
 
 export interface Area {

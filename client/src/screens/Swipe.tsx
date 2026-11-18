@@ -2,20 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Option, Vote } from '../../../shared/types.ts';
 import type { ScreenProps } from '../App.tsx';
 import { api, fmtDay, fmtTime, fmtTimeShort } from '../api.ts';
-import { CardArt } from '../components/CardArt.tsx';
+import { Chopsticks, Photo } from '../components/Brand.tsx';
 import { Arrow, Close, Heart, Pin, Star } from '../components/Icons.tsx';
 import { MiniMap } from '../components/MiniMap.tsx';
 import { endSession } from './Home.tsx';
 
 const THRESHOLD = 110;
-const DOT_COLORS = ['#E8473F', '#F0C53E', '#9DAF6E', '#EC9177', '#EB6B3A'];
+const DOTS = ['#E8473F', '#F0C53E', '#9DAF6E', '#EC9177', '#EB6B3A'];
 
-export function Swipe({ state, apply }: ScreenProps) {
+export function Swipe({ state, apply, switchTo }: ScreenProps) {
   const s = state.session!;
   const partner = state.partner!;
   const [local, setLocal] = useState<Record<string, Vote>>({});
   const [leaving, setLeaving] = useState<{ id: string; vote: Vote } | null>(null);
   const [toast, setToast] = useState<string | null>(s.bookingError);
+  const passAndPlay = state.localMode && !partner.isBot;
 
   useEffect(() => setToast(s.bookingError), [s.bookingError]);
   useEffect(() => {
@@ -23,6 +24,8 @@ export function Swipe({ state, apply }: ScreenProps) {
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
+  // New identity (pass-and-play hand-off) → forget the previous person's optimistic swipes.
+  useEffect(() => setLocal({}), [state.me.id]);
 
   const voted = { ...s.myVotes, ...local };
   const remaining = s.deck.filter((o) => !voted[o.id]);
@@ -33,8 +36,7 @@ export function Swipe({ state, apply }: ScreenProps) {
     (option: Option, vote: Vote, note?: string) => {
       if (leaving) return;
       setLeaving({ id: option.id, vote });
-      if (note) setToast(`You hearted ${note.length > 40 ? 'their review' : note}. ${partner.name} sees it only if you match.`);
-      // Let the fly-out animation play, then commit.
+      if (note) setToast(`You hearted ${/review|vibe|pitch/.test(note) ? note : `the ${note.toLowerCase()}`}. ${partner.name} only sees it if you match.`);
       setTimeout(() => {
         setLocal((l) => ({ ...l, [option.id]: vote }));
         setLeaving(null);
@@ -50,7 +52,6 @@ export function Swipe({ state, apply }: ScreenProps) {
     [leaving, s.id, apply, partner.name],
   );
 
-  // Keyboard: ← pass, → like, ↑ must-try
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!top || (e.target as HTMLElement).closest('input, select, textarea')) return;
@@ -64,45 +65,60 @@ export function Swipe({ state, apply }: ScreenProps) {
     return () => removeEventListener('keydown', onKey);
   }, [top, send]);
 
+  // Two taps to end (no system dialogs: the artifact viewer and iOS web views block confirm()).
+  const [armed, setArmed] = useState(false);
   async function quit() {
-    if (!confirm(`End this session for you and ${partner.name}?`)) return;
+    if (!armed) {
+      setArmed(true);
+      setToast(`Tap ✕ again to end this for you and ${partner.name}.`);
+      setTimeout(() => setArmed(false), 3500);
+      return;
+    }
     apply(await endSession(s.id));
   }
 
-  const title = `${s.mode === 'dinner' ? 'Dinner' : 'Movie'} · ${fmtDay(s.filters.date)}`;
+  const sticks = Math.min(s.deck.length, 24);
 
   return (
     <div className="screen" style={{ gap: 14, paddingLeft: 14, paddingRight: 14 }}>
       <header className="swipe-top">
-        <button className="icon-btn" onClick={quit} aria-label="End session"><Close size={18} /></button>
-        <div style={{ textAlign: 'center', minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 800 }}>{title}</div>
-          <div className="meta-sm" style={{ fontSize: 12, fontWeight: 600 }}>
-            {fmtTime(s.filters.windowStart)}–{fmtTime(s.filters.windowEnd)} · {Math.min(done + 1, s.deck.length)} of {s.deck.length}
+        <button className="icon-btn" onClick={quit} aria-label={armed ? 'Tap again to end session' : 'End session'} style={armed ? { background: 'var(--tobiko)' } : undefined}><Close size={18} /></button>
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontFamily: 'var(--display)', fontSize: 15 }}>
+            {s.mode === 'dinner' ? 'Dinner' : 'Movie'} · {fmtDay(s.filters.date).toLowerCase()}
+          </div>
+          <div className="progress-sticks" aria-label={`Card ${Math.min(done + 1, s.deck.length)} of ${s.deck.length}`}>
+            {Array.from({ length: sticks }, (_, i) => <i key={i} className={i < Math.round((done / s.deck.length) * sticks) ? 'on' : ''} />)}
           </div>
         </div>
-        <div className="pill" aria-label={`${partner.name} has swiped ${s.partnerProgress} of ${s.deck.length}`}>
-          <span className="pulse-dot" style={{ background: partner.color, animationPlayState: s.partnerProgress < s.deck.length ? 'running' : 'paused' }} />
-          {partner.name} {s.partnerProgress}/{s.deck.length}
-        </div>
+        {passAndPlay ? (
+          <button className="pill" onClick={() => switchTo(partner.id)} aria-label={`Hand the phone to ${partner.name}`}>
+            Pass to {partner.name} <Arrow size={14} />
+          </button>
+        ) : (
+          <div className="pill" aria-label={`${partner.name} has swiped ${s.partnerProgress} of ${s.deck.length}`}>
+            <span className="pulse-dot" style={{ background: partner.color, animationPlayState: s.partnerProgress < s.deck.length ? 'running' : 'paused' }} />
+            {partner.name} {s.partnerProgress}/{s.deck.length}
+          </div>
+        )}
       </header>
 
       <div className="deck">
         {top ? (
           <>
             {next && <div className="card behind" aria-hidden="true" />}
-            <ProfileCard
-              key={top.id}
-              option={top}
-              leaving={leaving?.id === top.id ? leaving.vote : null}
-              onVote={(v, note) => send(top, v, note)}
-            />
+            <ProfileCard key={top.id} option={top} leaving={leaving?.id === top.id ? leaving.vote : null} onVote={(v, note) => send(top, v, note)} />
           </>
         ) : (
-          <div className="empty stack" style={{ alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <div className="spinner" style={{ width: 32, height: 32 }} />
-            <h2 className="h2" style={{ color: 'var(--ink)' }}>You're through the deck.</h2>
-            <p className="lede">Waiting on {partner.name} — {s.deck.length - s.partnerProgress} cards to go. If you both said yes to something, you'll know instantly.</p>
+          <div className="stack" style={{ alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', gap: 14 }}>
+            <Chopsticks size={64} color="#1A1414" />
+            <h2 className="h2">You're through the deck.</h2>
+            <p className="lede">
+              {passAndPlay
+                ? `Your turn's done — hand the phone to ${partner.name}.`
+                : `Waiting on ${partner.name} — ${s.deck.length - s.partnerProgress} to go. If you both said yes to something, you'll know instantly.`}
+            </p>
+            {passAndPlay && <button className="btn btn-red" onClick={() => switchTo(partner.id)}>Pass to {partner.name}</button>}
           </div>
         )}
       </div>
@@ -110,17 +126,11 @@ export function Swipe({ state, apply }: ScreenProps) {
       {top && (
         <>
           <div className="actions">
-            <button className="act big" onClick={() => send(top, 'pass')} aria-label={`Pass on ${top.title}`}>
-              <Close size={28} strokeWidth={3} />
-            </button>
-            <button className="act mid" onClick={() => send(top, 'super')} aria-label={`Must-try: ${top.title}`}>
-              <Star size={24} />
-            </button>
-            <button className="act big yes" onClick={() => send(top, 'like')} aria-label={`Yes to ${top.title}`}>
-              <Heart size={30} />
-            </button>
+            <button className="act big pass" onClick={() => send(top, 'pass')} aria-label={`Pass on ${top.title}`}><Close size={28} strokeWidth={3} /></button>
+            <button className="act mid" onClick={() => send(top, 'super')} aria-label={`Must-try: ${top.title}`}><Star size={24} /></button>
+            <button className="act big yes" onClick={() => send(top, 'like')} aria-label={`Yes to ${top.title}`}><Heart size={30} /></button>
           </div>
-          <div className="hint">Scroll the card · swipe sideways · or heart {top.kind === 'movie' ? 'a review' : 'a dish'}</div>
+          <div className="hint">scroll · swipe · heart {top.kind === 'movie' ? 'a review' : 'a dish'}</div>
         </>
       )}
 
@@ -174,9 +184,9 @@ function ProfileCard({ option, leaving, onVote }: { option: Option; leaving: Vot
   const must = leaving === 'super' ? 1 : 0;
 
   const slots = [...option.slots].sort((a, b) => a.time.localeCompare(b.time));
-  const firstLast = slots.length ? `${fmtTimeShort(slots[0].time)}${slots.length > 1 ? `–${fmtTimeShort(slots[slots.length - 1].time)}` : ''}` : '';
-  const [genre, runtime] = isMovie ? [option.subtitle.split(' · ')[0], option.subtitle.split(' · ')[1]] : ['', ''];
-  const cuisine = option.subtitle.split(' · ')[0];
+  const span = slots.length ? `${fmtTimeShort(slots[0].time)}${slots.length > 1 ? `–${fmtTimeShort(slots[slots.length - 1].time)}` : ''}` : '';
+  const [genre, runtime] = option.subtitle.split(' · ');
+  const hasPhoto = option.photos.length > 0;
 
   return (
     <div
@@ -191,53 +201,63 @@ function ProfileCard({ option, leaving, onVote }: { option: Option; leaving: Vot
       aria-roledescription="profile card"
       aria-label={`${option.title}, ${option.subtitle}`}
     >
-      <div className="stamp yes" style={{ opacity: yes }}>Yes!</div>
-      <div className="stamp nope" style={{ opacity: nope }}>Nah</div>
-      <div className="stamp must" style={{ opacity: must }}>Must-try</div>
+      <div className="hanko yes" style={{ opacity: yes }}>YES<br />please</div>
+      <div className="hanko nope" style={{ opacity: nope }}>NAH</div>
+      <div className="hanko must" style={{ opacity: must }}>MUST<br />TRY</div>
 
       <div className="card-scroll">
-        {/* Hero */}
-        <CardArt option={option} className="hero">
-          {(option.badges.length > 0 || (!isMovie && option.tags.length > 0)) && (
-            <div className="card-badges">
-              {option.badges.map((b) => <span key={b} className="sticker gold tilt">{b}</span>)}
-              {!isMovie && option.tags.slice(0, 2).map((t, i) => <span key={t} className={`sticker${i === 0 ? ' tilt' : ''}`}>{t}</span>)}
-            </div>
-          )}
-          <div className="rating-badge" aria-label={`Rated ${option.rating} on ${option.ratingSource}`}>
+        <div className="hero">
+          <Photo option={option} poster={isMovie} />
+          {(hasPhoto || !isMovie) && <div className="hero-scrim" />}
+          <div className="hero-badges">
+            {option.badges.map((b) => <span key={b} className="sticker gold">{b}</span>)}
+            {!isMovie && option.tags.slice(0, 2).map((t) => <span key={t} className="sticker">{t}</span>)}
+          </div>
+          <div className="rating-seal" aria-label={`Rated ${option.rating} on ${option.ratingSource}`}>
             <b>{option.rating.toFixed(1)}</b>
             <small>{option.ratingSource}</small>
           </div>
-          <div className="hero-title" style={{ color: option.art.fg }}>
-            {option.title}
-            <div className="hero-sub">{isMovie ? `${genre} · ${option.tags[0]}` : `${cuisine} · ${option.areaName}`}</div>
-          </div>
-        </CardArt>
+          {!(isMovie && !hasPhoto) && (
+            <div className="hero-text">
+              <div className="hero-title">{option.title}</div>
+              <div className="hero-sub">{isMovie ? `${genre} · ${option.tags[0]}` : `${genre} · ${option.areaName}`}</div>
+            </div>
+          )}
+        </div>
 
-        {/* Quick facts */}
+        {option.why && <div className="why note">↳ {option.why.charAt(0).toLowerCase() + option.why.slice(1)}</div>}
+
         <div className="facts">
-          {!isMovie && option.price ? <span className="fact price" aria-label={`Price level ${option.price} of 4`}>{'$'.repeat(option.price)}<span style={{ opacity: 0.35 }}>{'$'.repeat(4 - option.price)}</span></span> : null}
+          {!isMovie && option.price ? (
+            <span className="fact price" aria-label={`Price level ${option.price} of 4`}>
+              {'$'.repeat(option.price)}<span style={{ opacity: 0.35 }}>{'$'.repeat(4 - option.price)}</span>
+            </span>
+          ) : null}
           {isMovie && <span className="fact">{runtime}</span>}
-          {option.distanceMi != null && <span className="fact"><Pin size={14} /> {option.distanceMi} mi away</span>}
-          {firstLast && <span className="fact">{isMovie ? 'Showing' : 'Open'} {firstLast}</span>}
+          {option.distanceMi != null && <span className="fact"><Pin size={14} /> {option.distanceMi} mi</span>}
+          {span && <span className="fact">{isMovie ? 'showing' : 'tables'} {span}</span>}
           {option.providers[0] && <span className="fact">via {option.providers.join(' / ')}</span>}
         </div>
 
-        {/* Prompt: the vibe */}
-        <section className="section tint-salmon">
-          <div className="section-label">{isMovie ? 'The pitch' : 'The vibe'}</div>
+        <section className="section salmon">
+          <div className="section-label">{isMovie ? 'the pitch' : 'the vibe'}</div>
           <div className="prompt">{option.blurb}</div>
           <HeartBtn label={isMovie ? 'the pitch' : 'the vibe'} onClick={() => onVote('like', isMovie ? 'the pitch' : 'the vibe')} corner />
         </section>
 
-        {/* Menu highlights / why watch */}
-        <section className="section">
-          <div className="section-label">{isMovie ? 'Why watch' : 'Order this'}</div>
+        {option.photos[1] && <Photo option={option} index={1} className="inline-photo" />}
+
+        <section className="section rice">
+          <div className="section-label">{isMovie ? 'why watch' : 'order this'}</div>
           {option.highlights.map((d, i) => (
             <div className="dish" key={d.name}>
-              {!isMovie && <span className="dish-dot" style={{ background: DOT_COLORS[(i + option.id.length) % DOT_COLORS.length] }} aria-hidden="true" />}
+              {!isMovie && (
+                <span className="plate" style={{ width: 40, height: 40 }} aria-hidden="true">
+                  <span style={{ background: DOTS[(i + option.id.length) % DOTS.length] }} />
+                </span>
+              )}
               <div className="grow">
-                <div className="dish-name">{d.name}{d.tag && <span className="tag-mini">{d.tag}</span>}</div>
+                <div className="dish-name">{d.name}{d.tag && <span className="tag-mini">← {d.tag.toLowerCase()}</span>}</div>
                 <div className="meta-sm">{d.desc}</div>
               </div>
               {d.price && <span className="dish-price">{d.price}</span>}
@@ -246,55 +266,46 @@ function ProfileCard({ option, leaving, onVote }: { option: Option; leaving: Vot
           ))}
         </section>
 
-        {/* Reviews */}
-        <section className="section tint-yellow">
-          <div className="section-label">What people say</div>
+        <section className="section tamago">
+          <div className="section-label">what people say</div>
           {option.reviews.map((r) => (
-            <div className="review" key={r.text} style={{ position: 'relative' }}>
-              <div className="review-text">{r.text}</div>
-              <div className="row meta-sm" style={{ gap: 8, marginTop: 6 }}>
+            <div className="review" key={r.text}>
+              <div className="review-text">“{r.text}”</div>
+              <div className="review-by">
                 <span className="stars" aria-label={`${r.stars} stars`}>{Array.from({ length: Math.round(r.stars) }, (_, i) => <Star key={i} size={12} />)}</span>
-                <span style={{ fontWeight: 700 }}>{r.author}</span> · {r.when} · {r.source}
+                — {r.author}, {r.when}
               </div>
               <HeartBtn label={`${r.author}'s review`} onClick={() => onVote('like', `${r.author}'s review`)} style={{ position: 'absolute', right: 0, top: 0 }} />
             </div>
           ))}
         </section>
 
-        {/* Times */}
         <section className="section">
-          <div className="section-label">{isMovie ? 'Showtimes in your window' : 'Tables in your window'}</div>
+          <div className="section-label">{isMovie ? 'showtimes in your window' : 'tables in your window'}</div>
           <div className="wrap">
             {slots.slice(0, 8).map((sl) => (
-              <span key={sl.id} className="slot-chip">
-                {fmtTimeShort(sl.time)}
-                {isMovie && sl.label ? <span className="muted" style={{ fontWeight: 600 }}> · {sl.label.split(' · ')[1]}</span> : sl.label ? <span className="muted" style={{ fontWeight: 600 }}> · bar</span> : null}
+              <span key={sl.id} className="slot-chip" style={{ background: 'var(--rice)' }}>
+                {fmtTime(sl.time)}
+                {isMovie && sl.label ? ` · ${sl.label.split(' · ')[1]}` : sl.label ? ' · bar' : ''}
               </span>
             ))}
           </div>
         </section>
 
-        {/* Location */}
         {option.distanceMi != null && (
-          <section className="section tint-cream">
-            <div className="section-label">Where</div>
+          <section className="section rice">
+            <div className="section-label">where</div>
             <MiniMap seed={option.id} distanceMi={option.distanceMi} from={option.areaName} to={option.title} />
-            <div className="row" style={{ marginTop: 10, gap: 8, alignItems: 'flex-start' }}>
-              <Pin size={18} className="ember" style={{ flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <div style={{ fontWeight: 800 }}>{option.address}</div>
-                <div className="meta-sm">{option.distanceMi} mi from {option.areaName} · about {Math.max(2, Math.round(option.distanceMi * 20))} min walk</div>
-              </div>
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontWeight: 700 }}>{option.address}</div>
+              <div className="meta-sm">{option.distanceMi} mi from {option.areaName} · about {Math.max(2, Math.round(option.distanceMi * 20))} min walk</div>
             </div>
           </section>
         )}
 
-        {/* Links */}
-        <div className="wrap" style={{ padding: '14px 14px 0' }}>
+        <div className="wrap" style={{ padding: '16px 14px 0' }}>
           {option.links.map((l) => (
-            <a key={l.label} className="link-pill" href={l.url} target="_blank" rel="noreferrer">
-              {l.label} <Arrow size={14} />
-            </a>
+            <a key={l.label} className="link-pill" href={l.url} target="_blank" rel="noreferrer">{l.label} <Arrow size={14} /></a>
           ))}
         </div>
         <div className="card-end" />

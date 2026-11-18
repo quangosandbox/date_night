@@ -8,7 +8,7 @@ let hooks: Hooks | null = null;
 export const setBotHooks = (h: Hooks) => (hooks = h);
 
 const running = new Set<string>();
-const STEP_MS = Number(process.env.BOT_STEP_MS ?? 650);
+const STEP_MS = Number((typeof process !== 'undefined' && process.env?.BOT_STEP_MS) || 650);
 
 export function scheduleBot(s: Session, members: User[]) {
   const bot = members.find((m) => m?.isBot);

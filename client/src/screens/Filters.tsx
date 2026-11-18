@@ -89,7 +89,7 @@ export function Filters({ mode, meta, state, apply, onBack }: ScreenProps & { mo
       <header className="row">
         <button className="icon-btn" onClick={onBack} aria-label="Back"><Back /></button>
         <h1 className="h2">
-          {mode === 'dinner' ? 'Dinner' : 'A movie'}, <span className="italic">{dayWord}</span>
+          {mode === 'dinner' ? 'Dinner' : 'A movie'}, <span className="hl">{dayWord}</span>
         </h1>
       </header>
 
@@ -125,9 +125,9 @@ export function Filters({ mode, meta, state, apply, onBack }: ScreenProps & { mo
       <section className="stack" aria-labelledby="where">
         <h2 id="where" className="eyebrow" style={{ margin: 0 }}>Where</h2>
         <div className="panel row" style={{ padding: '6px 6px 6px 16px', gap: 10 }}>
-          <Pin className="ember" />
+          <Pin className="ember" style={{ flexShrink: 0 }} />
           <label htmlFor="area" className="sr-only">Neighborhood</label>
-          <select id="area" className="select" style={{ border: 0, background: 'transparent', height: 44, padding: '0 36px 0 0', fontWeight: 500 }} value={f.area} onChange={(e) => set('area', e.target.value)}>
+          <select id="area" className="select" style={{ boxShadow: 'none', background: 'transparent', minHeight: 44, padding: '0 36px 0 0', fontWeight: 600 }} value={f.area} onChange={(e) => set('area', e.target.value)}>
             {meta.areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </div>
@@ -189,10 +189,10 @@ export function Filters({ mode, meta, state, apply, onBack }: ScreenProps & { mo
       <div className="spacer" />
       {error && <div role="alert" style={{ color: 'var(--ember-text)', fontSize: 14 }}>{error}</div>}
       <div className="sticky-cta">
-        <button className="btn btn-primary btn-block" onClick={start_} disabled={busy || count === 0}>
+        <button className="btn btn-red btn-block" onClick={start_} disabled={busy || count === 0}>
           {count === 0 ? 'Nothing open — try widening' : `Start swiping${count != null ? ` · ${count} ${mode === 'dinner' ? 'spots' : 'films'} open` : ''}`}
         </button>
-        <div className="meta-sm" style={{ textAlign: 'center' }}>{state.partner?.name} will get the same deck</div>
+        <div className="note" style={{ textAlign: 'center', fontSize: 17, color: 'var(--muted)' }}>{state.partner?.name} gets the same deck · tuned to what you two like</div>
       </div>
     </div>
   );

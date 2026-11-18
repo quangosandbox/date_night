@@ -16,7 +16,23 @@ export class ApiError extends Error {
   }
 }
 
+/** Run fully on-device (iOS app, shareable build, or ?local=1) instead of talking to a server. */
+export const LOCAL =
+  import.meta.env.VITE_BACKEND === 'local' || location.protocol === 'capacitor:' || new URLSearchParams(location.search).has('local');
+
+type Local = typeof import('./localBackend.ts');
+let localMod: Promise<Local> | null = null;
+const local = () => (localMod ??= import('./localBackend.ts'));
+
 export async function api<T = AppState>(path: string, body?: unknown, method = body === undefined ? 'GET' : 'POST'): Promise<T> {
+  if (LOCAL) {
+    const { handle } = await local();
+    const r = await handle(method, path, getUserId(), body === undefined ? undefined : JSON.parse(JSON.stringify(body)));
+    if (r.status !== 200) throw new ApiError(r.status, (r.body as { error?: string }).error ?? 'Something went wrong');
+    const out = JSON.parse(JSON.stringify(r.body)) as T; // detach from the live store
+    if (out && typeof out === 'object' && 'me' in out) (out as unknown as AppState).localMode = true;
+    return out;
+  }
   const res = await fetch(`/api${path}`, {
     method,
     headers: { 'Content-Type': 'application/json', 'x-user-id': getUserId() ?? '' },
@@ -67,7 +83,14 @@ export function useAppState() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !LOCAL) return;
+    let off = () => {};
+    local().then(({ subscribe }) => (off = subscribe(userId, () => refresh())));
+    return () => off();
+  }, [userId, refresh]);
+
+  useEffect(() => {
+    if (!userId || LOCAL) return;
     let es: EventSource | null = null;
     let retry: ReturnType<typeof setTimeout>;
     const connect = () => {
@@ -89,7 +112,16 @@ export function useAppState() {
     };
   }, [userId, refresh]);
 
-  return { state, loading, apply, refresh };
+  /** Pass-and-play: hand the phone to your partner. */
+  const switchTo = useCallback(
+    (uid: string) => {
+      setUserId(uid);
+      refresh();
+    },
+    [refresh],
+  );
+
+  return { state, loading, apply, refresh, switchTo };
 }
 
 export function useMeta() {
@@ -127,15 +159,17 @@ export function fmtDay(iso: string) {
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-export function icsFor(b: { title: string; date: string; slot: { time: string }; address?: string; confirmation: string }, minutes = 120) {
+/** "Add to calendar" as a Google Calendar link: works in browsers, the artifact viewer and the iOS app. */
+export function calendarLink(b: { title: string; date: string; slot: { time: string }; address?: string; confirmation: string }, minutes = 120) {
   const start = new Date(`${b.date}T${b.slot.time}:00`);
   const end = new Date(start.getTime() + minutes * 60000);
   const z = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-  const ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Date Night//EN', 'BEGIN:VEVENT',
-    `UID:${b.confirmation}@datenight`, `DTSTAMP:${z(new Date())}`, `DTSTART:${z(start)}`, `DTEND:${z(end)}`,
-    `SUMMARY:Date night · ${b.title}`, `LOCATION:${b.address ?? ''}`, `DESCRIPTION:Confirmation ${b.confirmation}`,
-    'END:VEVENT', 'END:VCALENDAR',
-  ].join('\r\n');
-  return URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+  const q = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `Date night · ${b.title}`,
+    dates: `${z(start)}/${z(end)}`,
+    location: b.address ?? '',
+    details: `Booked with Date Night · confirmation ${b.confirmation}`,
+  });
+  return `https://calendar.google.com/calendar/render?${q}`;
 }

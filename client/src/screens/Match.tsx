@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { ScreenProps } from '../App.tsx';
-import { api, fmtDay, fmtTime, fmtTimeShort, icsFor } from '../api.ts';
+import { api, fmtDay, fmtTime, fmtTimeShort, calendarLink } from '../api.ts';
 import { Pair } from '../components/Avatar.tsx';
-import { CardArt } from '../components/CardArt.tsx';
+import { Photo } from '../components/Brand.tsx';
 import { Calendar, Check, Heart, Pin } from '../components/Icons.tsx';
 import { endSession } from './Home.tsx';
 
@@ -17,23 +17,15 @@ export function Match({ state, apply }: ScreenProps) {
   const [slotId, setSlotId] = useState(m.slot?.id ?? option.slots[0]?.id);
   const [busy, setBusy] = useState(false);
 
-  const headline =
-    m.via === 'fate' ? (
-      <>Fate <span className="italic">has spoken.</span></>
-    ) : m.via === 'nearMiss' ? (
-      <>Done <span className="italic">deal.</span></>
-    ) : (
-      <>It's a <span className="italic">match.</span></>
-    );
+  const [title, note] =
+    m.via === 'fate' ? ['Fate has spoken.', `the dice picked ${option.title}`] : m.via === 'nearMiss' ? ['Done deal.', `${option.title} it is`] : ['Chopsticks down.', `you both picked ${option.title}`];
 
   const why = useMemo(() => {
     const supers = m.superBy.map((id) => (id === state.me.id ? 'You' : partner.name));
-    if (m.via === 'fate') return 'Picked at random from the spots you liked.';
-    if (m.via === 'nearMiss') return 'One of you liked it, the other said "I\'m in."';
     if (supers.length === 2) return 'You both marked it a must-try.';
-    if (supers.length === 1) return `You both said yes. ${supers[0]} called it a must-try.`;
-    const idx = s.deck.findIndex((o) => o.id === option.id);
-    return `You both said yes on card ${idx + 1}.`;
+    if (supers.length === 1) return `${supers[0]} called it a must-try.`;
+    if (m.via === 'swipe') return `Card ${s.deck.findIndex((o) => o.id === option.id) + 1} of ${s.deck.length}.`;
+    return '';
   }, [m, state.me.id, partner.name, s.deck, option.id]);
 
   async function book() {
@@ -48,83 +40,83 @@ export function Match({ state, apply }: ScreenProps) {
   const slot = booking?.slot ?? m.slot;
   const autoBooking = !booking && s.filters.autoBook;
   const isMovie = option.kind === 'movie';
-  const place = isMovie ? slot?.label?.split(' · ')[0] : option.address;
+  const place = isMovie ? slot?.label?.split(' · ')[0] ?? option.address : option.address;
   const directions = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${isMovie ? place : option.title} ${option.address ?? ''} New York`)}`;
 
   return (
-    <div className="screen match-screen" style={{ position: 'relative', paddingTop: 40, gap: 20, overflow: 'hidden' }}>
+    <div className="screen match-screen" style={{ position: 'relative', overflow: 'hidden', gap: 20 }}>
       <Confetti />
-      <div className="stack" style={{ alignItems: 'center', textAlign: 'center', gap: 14, position: 'relative' }}>
-        <Pair me={state.me} partner={partner} size="lg" />
-        <h1 className="h1" style={{ fontSize: 54, lineHeight: 0.92 }}>{headline}</h1>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{why}</p>
+      <div className="match-head">
+        <div className="match-sticks" aria-hidden="true">
+          <span className="s l" />
+          <span className="s r" />
+          <span className="bite" />
+        </div>
+        <h1 className="match-title">{title}</h1>
+        <div className="note">{note}</div>
+        <div className="row" style={{ gap: 10, marginTop: 4 }}>
+          <Pair me={state.me} partner={partner} />
+          {why && <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.85 }}>{why}</span>}
+        </div>
       </div>
 
-      <section className="match-card" style={{ position: 'relative' }} aria-labelledby="match-title">
-        <CardArt option={option} poster={isMovie} />
-        <div className="stack" style={{ padding: 20, gap: 14 }}>
-          {!isMovie && (
-            <div>
-              <h2 id="match-title" className="card-title" style={{ margin: 0, fontSize: 30 }}>{option.title}</h2>
-              <div className="meta-sm" style={{ fontSize: 14, marginTop: 6 }}>{option.address} · {option.subtitle.split(' · ').slice(0, 2).join(' · ')}</div>
-            </div>
-          )}
-          {isMovie && <h2 id="match-title" className="sr-only">{option.title}</h2>}
-          {isMovie && place && <div className="meta-sm" style={{ fontSize: 14 }}>{place}</div>}
-
-          <div className="stat-grid">
-            <div className="stat"><div className="k">{fmtDay(s.filters.date)}</div><div className="v">{slot ? fmtTime(slot.time) : '—'}</div></div>
-            <div className="stat"><div className="k">{isMovie ? 'Tickets' : 'Party'}</div><div className="v">{s.filters.partySize}</div></div>
-            <div className="stat"><div className="k">Via</div><div className="v">{slot ? PROVIDER_NAMES[slot.provider] ?? slot.provider : '—'}</div></div>
+      <section className="ticket" aria-labelledby="ticket-title">
+        <Photo option={option} className="stub-photo" poster={isMovie} />
+        <div className="body">
+          <div>
+            <h2 id="ticket-title" className="title" style={{ margin: 0 }}>{option.title}</h2>
+            <div className="meta-sm" style={{ fontSize: 14, marginTop: 6 }}>{place}</div>
           </div>
-
-          {m.hearts.length > 0 && (
-            <div className="stack" style={{ gap: 6 }}>
-              {m.hearts.map((h) => (
-                <div key={h.userId} className="heart-note" style={{ fontWeight: 600 }}>
-                  <Heart size={16} className="ember" />
-                  <span>{h.userId === state.me.id ? 'You' : partner.name} hearted {/review|vibe|pitch/.test(h.item) ? h.item : <b>{h.item}</b>}</span>
-                </div>
-              ))}
+          <div className="kv">
+            <div><div className="k">{fmtDay(s.filters.date)}</div><div className="v">{slot ? fmtTime(slot.time) : '—'}</div></div>
+            <div><div className="k">{isMovie ? 'seats' : 'party'}</div><div className="v">{s.filters.partySize}</div></div>
+            <div><div className="k">via</div><div className="v">{slot ? PROVIDER_NAMES[slot.provider] ?? slot.provider : '—'}</div></div>
+          </div>
+          {m.hearts.map((h) => (
+            <div key={h.userId} className="heart-note">
+              <Heart size={16} />
+              <span>{h.userId === state.me.id ? 'you' : partner.name} hearted {/review|vibe|pitch/.test(h.item) ? h.item : `the ${h.item.toLowerCase()}`}</span>
             </div>
-          )}
-          {booking ? (
-            <div className="status-ok" role="status">
-              <Check size={18} strokeWidth={2.4} /> Booked · Confirmation {booking.confirmation}
-            </div>
-          ) : autoBooking ? (
-            <div className="status-wait" role="status"><span className="spinner" /> Booking {slot ? fmtTime(slot.time) : 'your table'}…</div>
-          ) : (
+          ))}
+          {!booking && autoBooking && <div className="status-wait" role="status"><span className="spinner" /> Booking {slot ? fmtTime(slot.time) : 'your table'}…</div>}
+          {!booking && !autoBooking && (
             <div className="stack" style={{ gap: 10 }}>
-              <div className="eyebrow">Pick a time</div>
+              <div className="eyebrow">pick a time</div>
               <div className="wrap" role="group" aria-label="Available times">
                 {option.slots.map((sl) => (
-                  <button key={sl.id} className="slot-chip" aria-pressed={sl.id === slotId} onClick={() => setSlotId(sl.id)}>
-                    {fmtTimeShort(sl.time)}
-                  </button>
+                  <button key={sl.id} className="slot-chip" style={{ background: sl.id === slotId ? undefined : 'var(--rice)' }} aria-pressed={sl.id === slotId} onClick={() => setSlotId(sl.id)}>{fmtTimeShort(sl.time)}</button>
                 ))}
               </div>
-              <button className="btn btn-primary btn-block" onClick={book} disabled={busy || !slotId}>
+              <button className="btn btn-red btn-block" onClick={book} disabled={busy || !slotId}>
                 {busy ? <span className="spinner" /> : null}
                 Book {fmtTime(option.slots.find((x) => x.id === slotId)?.time ?? '19:00')}
               </button>
             </div>
           )}
         </div>
+        {booking && (
+          <>
+            <div className="perf" />
+            <div className="stub">
+              <div className="stack" style={{ gap: 4 }}>
+                <span className="status-ok" role="status"><Check size={18} strokeWidth={2.6} /> Booked</span>
+                <span className="conf">{booking.confirmation}</span>
+              </div>
+              <div className="barcode" aria-hidden="true" />
+            </div>
+          </>
+        )}
       </section>
+      {booking?.demo && <div className="demo-flag" style={{ color: 'rgba(255,247,238,0.6)', textAlign: 'center', marginTop: -8 }}>demo booking — no real reservation until Resy/OpenTable are connected</div>}
 
       <div className="spacer" />
       {booking && (
         <div className="stack" style={{ gap: 10, position: 'relative' }}>
           <div className="row" style={{ gap: 10 }}>
-            <a className="btn btn-dark" style={{ flex: 1 }} href={icsFor(booking, isMovie ? 150 : 120)} download={`date-night-${booking.confirmation}.ics`}>
-              <Calendar size={18} /> Calendar
-            </a>
-            <a className="btn btn-outline-ink" style={{ flex: 1 }} href={directions} target="_blank" rel="noreferrer">
-              <Pin size={18} /> Directions
-            </a>
+            <a className="btn btn-gold" style={{ flex: 1 }} href={calendarLink(booking, isMovie ? 150 : 120)} target="_blank" rel="noreferrer"><Calendar size={18} /> Calendar</a>
+            <a className="btn btn-cream" style={{ flex: 1 }} href={directions} target="_blank" rel="noreferrer"><Pin size={18} /> Directions</a>
           </div>
-          <button className="link-btn" style={{ color: 'var(--ink)' }} onClick={async () => apply(await endSession(s.id))}>Done</button>
+          <button className="link-btn" style={{ color: 'var(--cream)' }} onClick={async () => apply(await endSession(s.id))}>Done — we'll ask how it went after</button>
         </div>
       )}
     </div>
@@ -132,23 +124,29 @@ export function Match({ state, apply }: ScreenProps) {
 }
 
 function Confetti() {
+  // Falling "sushi": tobiko dots, tamago blocks, cucumber rounds, salmon slices.
   const bits = useMemo(
     () =>
-      Array.from({ length: 28 }, (_, i) => ({
+      Array.from({ length: 26 }, (_, i) => ({
         left: Math.random() * 100,
-        delay: Math.random() * 0.6,
-        dur: 1.8 + Math.random() * 1.4,
-        color: ['#F0C53E', '#FFF7EE', '#9DAF6E', '#1A1414'][i % 4],
-        round: i % 3 === 0,
-        size: 8 + Math.random() * 8,
+        delay: 0.4 + Math.random() * 0.8,
+        dur: 2.2 + Math.random() * 1.6,
+        kind: i % 4,
         rot: Math.random() * 180,
       })),
     [],
   );
+  const style = (k: number) =>
+    [
+      { width: 10, height: 10, borderRadius: '50%', background: '#E8473F' },
+      { width: 16, height: 10, borderRadius: 3, background: '#F0C53E' },
+      { width: 14, height: 14, borderRadius: '50%', background: '#EEE0CA', boxShadow: 'inset 0 0 0 3px #9DAF6E' },
+      { width: 18, height: 9, borderRadius: '50% / 60%', background: '#EC9177' },
+    ][k];
   return (
     <div className="confetti" aria-hidden="true">
       {bits.map((b, i) => (
-        <i key={i} style={{ left: `${b.left}%`, width: b.size, height: b.round ? b.size : b.size * 1.6, borderRadius: b.round ? '50%' : 3, background: b.color, animationDuration: `${b.dur}s`, animationDelay: `${b.delay}s`, transform: `rotate(${b.rot}deg)` }} />
+        <i key={i} style={{ left: `${b.left}%`, animationDuration: `${b.dur}s`, animationDelay: `${b.delay}s`, transform: `rotate(${b.rot}deg)`, ...style(b.kind) }} />
       ))}
     </div>
   );

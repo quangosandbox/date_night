@@ -20,8 +20,9 @@ export function ProfileSheet({ state, apply, onClose }: ScreenProps & { onClose:
     onClose();
   }
 
+  const [armed, setArmed] = useState(false);
   async function unpair() {
-    if (!confirm(`Unpair from ${state.partner?.name ?? 'your partner'}?`)) return;
+    if (!armed) return setArmed(true);
     apply(await api('/couple/leave', {}));
     onClose();
   }
@@ -47,7 +48,7 @@ export function ProfileSheet({ state, apply, onClose }: ScreenProps & { onClose:
         </div>
         <button className="btn btn-primary btn-block" onClick={save}>Save</button>
         {state.partner && (
-          <button className="link-btn" onClick={unpair}>Unpair from {state.partner.name}</button>
+          <button className="link-btn" onClick={unpair} style={armed ? { color: 'var(--tobiko-ink)' } : undefined}>{armed ? `Tap again to unpair from ${state.partner.name}` : `Unpair from ${state.partner.name}`}</button>
         )}
       </div>
     </>

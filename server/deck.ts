@@ -5,6 +5,7 @@ import { AREAS } from './providers/mockData.ts';
 import type { Providers } from './providers/index.ts';
 import { PROVIDER_LABELS } from './providers/index.ts';
 import { filmContent, venueContent } from './providers/mockContent.ts';
+import { tasteBoost, type TasteModel } from './taste.ts';
 import { milesBetween, toMinutes } from './util.ts';
 
 export const DECK_SIZE = 30;
@@ -62,12 +63,29 @@ function proximityBoost(slots: Slot[], f: Filters) {
 
 const priceLabel = (p: number) => '$'.repeat(p);
 
-export async function buildDeck(mode: Mode, filters: Filters, members: User[], p: Providers, exclude = new Set<string>()): Promise<Option[]> {
+export interface DeckOptions {
+  exclude?: Set<string>;
+  taste?: TasteModel;
+}
+
+export async function buildDeck(mode: Mode, filters: Filters, members: User[], p: Providers, opts: DeckOptions = {}): Promise<Option[]> {
   const area = AREAS.find((a) => a.id === filters.area) ?? AREAS[0];
+  const exclude = opts.exclude ?? new Set<string>();
   const options = mode === 'dinner' ? await buildDinner(filters, area, p) : await buildMovies(filters, area, members, p);
   return options
     .filter((o) => o.slots.length > 0 && !exclude.has(o.id))
-    .map((o) => ({ o, score: (o as Option & { _score: number })._score }))
+    .flatMap((o) => {
+      // Learned taste nudges the order and explains itself on the card.
+      let score = (o as Option & { _score: number })._score;
+      if (opts.taste) {
+        const t = tasteBoost(o, opts.taste);
+        if (t.exclude) return [];
+        score += t.boost;
+        if (t.why) o.why = t.why;
+        if (t.badge) o.badges = [t.badge, ...o.badges];
+      }
+      return [{ o, score }];
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, DECK_SIZE)
     .map(({ o }) => {
@@ -92,7 +110,12 @@ async function buildDinner(f: Filters, area: (typeof AREAS)[number], p: Provider
       const slots = [...byTime.values()].sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
 
       const distanceMi = Math.round(milesBetween(area, v) * 10) / 10;
+      // Listing photos: Google first, then any the reservation providers return.
+      const listing = await Promise.all(p.reservations.filter((r) => v.refs[r.id] && r.listingPhotos).map((r) => r.listingPhotos!(v.refs[r.id], v)));
+      const photos = [...(v.photos ?? []), ...listing.flat()];
       const content = venueContent(v);
+      if (v.reviewList?.length) content.reviews = v.reviewList; // real reviews win over sample content
+      if (v.website) content.links = [...content.links, { label: 'Website', url: v.website }];
       const confidence = (v.rating * v.reviews + 4.2 * 300) / (v.reviews + 300);
       const option: Option & { _score: number } = {
         id: v.id,
@@ -109,6 +132,7 @@ async function buildDinner(f: Filters, area: (typeof AREAS)[number], p: Provider
         price: v.price,
         areaName: area.name,
         ...content,
+        photos,
         art: CUISINE_ART[v.cuisine] ?? { bg: '#3A2E44', fg: '#F7F1EA', motif: 'star' },
         badges: [],
         slots,
@@ -158,6 +182,7 @@ async function buildMovies(f: Filters, area: (typeof AREAS)[number], members: Us
         address: nearest ? `${nearest.s.theaterName} · ${nearest.s.address}` : undefined,
         distanceMi: nearest ? Math.round(nearest.d * 10) / 10 : undefined,
         ...filmContent(film),
+        photos: [],
         art: GENRE_ART[film.genres[0]] ?? { bg: '#3A2E44', fg: '#F7F1EA', motif: 'star' },
         badges,
         slots,

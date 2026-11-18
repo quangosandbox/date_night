@@ -12,7 +12,7 @@ const filters: Filters = {
 const slot = (time: string, provider = 'resy'): Slot => ({ id: `${provider}:${time}`, time, provider });
 const opt = (id: string, slots: Slot[] = [slot('19:30'), slot('20:00'), slot('20:45')]): Option => ({
   id, kind: 'dinner', title: id, subtitle: '', blurb: '', rating: 4.5, ratingSource: 'Google', tags: [], providers: ['Resy'],
-  art: { bg: '#000', fg: '#fff', motif: 'star' }, badges: [], slots, areaName: 'X', reviews: [], highlights: [], links: [],
+  art: { bg: '#000', fg: '#fff', motif: 'star' }, badges: [], slots, areaName: 'X', reviews: [], highlights: [], links: [], photos: [],
 });
 
 const session = (deck = [opt('a'), opt('b'), opt('c')]) =>

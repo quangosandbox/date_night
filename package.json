@@ -9,12 +9,23 @@
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:app": "VITE_BACKEND=local vite build",
+    "ios": "npm run build:app && npx cap sync ios && npx cap open ios",
+    "ios:sync": "npm run build:app && npx cap sync ios",
+    "build:share": "vite build -c vite.artifact.config.ts"
   },
   "dependencies": {
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/ios": "^8.6.2",
+    "@fontsource-variable/instrument-sans": "^5.3.0",
+    "@fontsource/dela-gothic-one": "^5.3.0",
+    "@fontsource/dm-mono": "^5.3.0",
+    "@fontsource/gochi-hand": "^5.3.0",
     "express": "^4.22.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@types/express": "^4.17.25",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
@@ -26,6 +37,7 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
+    "vite-plugin-singlefile": "^2.3.4",
     "vitest": "^5.1.0"
   }
 }

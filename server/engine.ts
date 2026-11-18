@@ -175,6 +175,8 @@ export async function bookMatch(
         partySize: s.filters.partySize,
         date: s.filters.date,
         address: option.address,
+        option,
+        demo: res.demo,
       };
       return 'booked';
     }
