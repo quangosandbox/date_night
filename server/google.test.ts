@@ -65,9 +65,25 @@ describe('Google Places mapping', () => {
     const body = JSON.parse(String(calls[0].init.body));
     expect(calls[0].url).toContain('places:searchNearby');
     expect(body.includedTypes).toEqual(['italian_restaurant', 'pizza_restaurant']);
+    expect(body.excludedTypes).toContain('fast_food_restaurant');
     expect(body.locationRestriction.circle).toEqual({ center: { latitude: 40.7358, longitude: -74.0036 }, radius: 3218 });
     await g.discover(area, 2, { ...f, cuisines: ['Italian'] });
     expect(calls).toHaveLength(1); // served from the short-lived cache
+  });
+});
+
+describe('date-night quality', () => {
+  it('drops low-rated places and prefers confirmed reservations when there are enough', async () => {
+    const mk = (id: string, extra: Partial<GPlace>) => ({ ...place, id, ...extra });
+    const confirmed = Array.from({ length: 8 }, (_, i) => mk(`ok${i}`, {}));
+    const fakeFetch = (async () =>
+      new Response(JSON.stringify({ places: [...confirmed, mk('meh', { rating: 3.6 }), mk('tiny', { userRatingCount: 4 }), mk('unknown', { reservable: undefined })] }))) as unknown as typeof fetch;
+    const g = googlePlaces('k', fakeFetch);
+    const ids = (await g.discover({ id: 'x', name: 'X', lat: 40.7359, lng: -74.0037 }, 1, f)).map((v) => v.id);
+    expect(ids).toHaveLength(8);
+    expect(ids).not.toContain('g-meh');
+    expect(ids).not.toContain('g-tiny');
+    expect(ids).not.toContain('g-unknown'); // enough confirmed places, so "unknown" is left out
   });
 });
 

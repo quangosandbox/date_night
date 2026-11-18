@@ -52,6 +52,15 @@ const FIELDS = [
   'places.businessStatus',
 ].join(',');
 
+/** Not date-night material: excluded from every search. */
+export const EXCLUDED_TYPES = [
+  'fast_food_restaurant', 'meal_takeaway', 'meal_delivery', 'cafe', 'coffee_shop', 'bakery', 'breakfast_restaurant',
+  'brunch_restaurant', 'sandwich_shop', 'ice_cream_shop', 'donut_shop', 'dessert_shop', 'juice_shop', 'food_court', 'cafeteria',
+  'deli', 'market', 'grocery_store', 'supermarket', 'convenience_store', 'liquor_store',
+];
+const MIN_RATING = 4.0;
+const MIN_REVIEWS = 30;
+
 /** Google place types to search for each cuisine filter. */
 export function typesFor(cuisines: string[]): string[] {
   if (!cuisines.length) return ['restaurant'];
@@ -156,6 +165,7 @@ export function googlePlaces(apiKey: string, fetchImpl: typeof fetch = fetch): V
       headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELDS },
       body: JSON.stringify({
         includedTypes: typesFor(cuisines),
+        excludedTypes: EXCLUDED_TYPES,
         maxResultCount: 20,
         rankPreference: 'POPULARITY',
         locationRestriction: { circle: { center: { latitude: area.lat, longitude: area.lng }, radius: Math.min(50000, Math.round(radiusMi * 1609)) } },
@@ -179,9 +189,13 @@ export function googlePlaces(apiKey: string, fetchImpl: typeof fetch = fetch): V
         cache.set(key, { at: Date.now(), venues });
         venues.catch(() => cache.delete(key));
       }
-      return (await venues)
+      const good = (await venues)
         .filter((v) => milesBetween(area, v) <= radiusMi)
-        .filter((v) => v.servesDinner !== false && v.handoff?.reservable !== false); // dinner + takes reservations
+        .filter((v) => v.servesDinner !== false && v.handoff?.reservable !== false) // dinner, not "no reservations"
+        .filter((v) => v.rating >= MIN_RATING && v.reviews >= MIN_REVIEWS);
+      // Prefer places Google confirms take reservations; fall back to "unknown" only when the area is thin.
+      const confirmed = good.filter((v) => v.handoff?.reservable === true);
+      return confirmed.length >= 8 ? confirmed : good;
     },
   };
 }

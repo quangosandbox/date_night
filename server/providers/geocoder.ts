@@ -44,16 +44,20 @@ export function googleGeocoder(apiKey: string, fetchImpl: typeof fetch = fetch):
           input,
           sessionToken: session,
           includedRegionCodes: ['us'],
-          locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 30000 } },
+          origin: { latitude: near.lat, longitude: near.lng }, // returns distanceMeters so we can sort nearest first
+          locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 8000 } },
         }),
       });
       if (!res.ok) throw new Error(`Places autocomplete ${res.status}`);
       const data = (await res.json()) as {
-        suggestions?: { placePrediction?: { placeId: string; text?: { text: string }; structuredFormat?: { mainText?: { text: string }; secondaryText?: { text: string } } } }[];
+        suggestions?: {
+          placePrediction?: { placeId: string; distanceMeters?: number; text?: { text: string }; structuredFormat?: { mainText?: { text: string }; secondaryText?: { text: string } } };
+        }[];
       };
       return (data.suggestions ?? [])
         .map((s) => s.placePrediction)
         .filter((p): p is NonNullable<typeof p> => !!p?.placeId)
+        .sort((a, b) => (a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity))
         .slice(0, 5)
         .map((p) => ({ id: p.placeId, label: p.structuredFormat?.mainText?.text ?? p.text?.text ?? '', secondary: p.structuredFormat?.secondaryText?.text }));
     },

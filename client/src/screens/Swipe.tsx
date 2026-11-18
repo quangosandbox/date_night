@@ -131,7 +131,7 @@ export function Swipe({ state, apply, switchTo }: ScreenProps) {
             <button className="act mid" onClick={() => send(top, 'super')} aria-label={`Must-try: ${top.title}`}><Star size={24} /></button>
             <button className="act big yes" onClick={() => send(top, 'like')} aria-label={`Yes to ${top.title}`}><Heart size={30} /></button>
           </div>
-          <div className="hint">scroll · swipe · heart {top.kind === 'movie' ? 'a review' : 'a dish'}</div>
+          <div className="hint">scroll · swipe · heart {top.kind === 'movie' ? 'a review' : top.highlights.length ? 'a dish' : 'the vibe'}</div>
         </>
       )}
 

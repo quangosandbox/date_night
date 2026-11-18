@@ -6,7 +6,7 @@ import { Photo } from '../components/Brand.tsx';
 import { Calendar, Check, Heart, Pin } from '../components/Icons.tsx';
 import { endSession } from './Home.tsx';
 
-const PROVIDER_NAMES: Record<string, string> = { resy: 'Resy', opentable: 'OpenTable', atom: 'Atom', fandango: 'Fandango', handoff: 'Google Maps' };
+const PROVIDER_NAMES: Record<string, string> = { resy: 'Resy', opentable: 'OpenTable', atom: 'Atom', fandango: 'Fandango', handoff: 'Maps' };
 
 export function Match({ state, apply }: ScreenProps) {
   const s = state.session!;
@@ -105,7 +105,7 @@ export function Match({ state, apply }: ScreenProps) {
                 Aim for {fmtTime(time)}. {handoff.mapsUrl ? 'Google Maps shows a "Reserve a table" button when they take online bookings.' : ''}
               </div>
               <div className="handoff-actions">
-                {handoff.mapsUrl && <a className="btn btn-red" href={handoff.mapsUrl} target="_blank" rel="noreferrer"><Pin size={16} /> Reserve on Maps</a>}
+                {handoff.mapsUrl && <a className="btn btn-red" href={handoff.mapsUrl} target="_blank" rel="noreferrer"><Pin size={16} /> Reserve</a>}
                 {handoff.website && <a className="btn" href={handoff.website} target="_blank" rel="noreferrer">Website</a>}
                 {handoff.phone && <a className="btn" href={`tel:${handoff.phone.replace(/[^\d+]/g, '')}`}>Call</a>}
               </div>

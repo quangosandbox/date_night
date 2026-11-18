@@ -48,10 +48,23 @@ app.get('/api/events', (req, res) => {
 });
 
 // Google Places photos are proxied so the API key never reaches the browser.
+// Each lookup is a billed Google call, so resolved photo links are cached for an hour.
+const photoCache = new Map<string, { url: string; at: number }>();
 app.get('/api/places-photo', async (req, res) => {
   if (!GOOGLE_KEY) return res.status(404).end();
-  const url = await resolvePlacesPhoto(GOOGLE_KEY, String(req.query.name ?? '')).catch(() => null);
-  return url ? res.redirect(302, url) : res.status(404).end();
+  const name = String(req.query.name ?? '');
+  const hit = photoCache.get(name);
+  let url = hit && Date.now() - hit.at < 3600_000 ? hit.url : null;
+  if (!url) {
+    url = await resolvePlacesPhoto(GOOGLE_KEY, name).catch(() => null);
+    if (url) {
+      photoCache.set(name, { url, at: Date.now() });
+      if (photoCache.size > 5000) photoCache.delete(photoCache.keys().next().value!);
+    }
+  }
+  if (!url) return res.status(404).end();
+  res.set('Cache-Control', 'private, max-age=3600');
+  return res.redirect(302, url);
 });
 
 app.all(/^\/api\/.*/, async (req, res) => {

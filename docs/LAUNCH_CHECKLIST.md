@@ -19,7 +19,7 @@
 - [x] ✅ Beta scope (above)
 - [ ] 🙋 Check that "Date Night" is free on the App Store and as a domain. It's generic, so keep a backup name ready.
 - [ ] 🙋 Enroll in the **Apple Developer Program** ($99/yr). Individual enrollment can be approved within a day or two; a company needs a D-U-N-S number, which takes much longer.
-- [ ] 🙋 **Google Cloud key**
+- [x] ✅ **Google Cloud key** — created and saved as a network secret on the Default environment; live-tested Nov 18
   1. Create a project and turn on billing.
   2. Enable **Places API (New)**.
   3. Create an API key and restrict it to Places API (New). Once the server is hosted, also restrict it to the server's IP address.
@@ -42,7 +42,10 @@
 - [x] ✅ Tests for the Google mapping, opening hours (including late-night places), the handoff flow and "no table"
 
 **Still to do**
-- [ ] 🤖 Plug in your key and test against live Google: result quality per neighborhood, photo loading, cost per deck. **Blocked on the key.**
+- [x] ✅ Live Google test: real address suggestions, geofenced search (14 real places within ½ mi of 12 Bleecker St), photos with credits, reviews, opening hours, Maps/website/phone handoff all working
+- [x] ✅ Date-night quality filters from the live test: no fast food, cafés, bakeries, delis or markets; at least 4.0 stars and 30 reviews; prefer places Google confirms take reservations
+- [x] ✅ Cost controls: 1 search per deck (cached 10 min), suggestions billed per typing session, photo links cached for an hour
+- [ ] 🙋 Still do steps 6–7 of the key setup if you haven't: restrict the key to Places API (New), set a budget alert and a daily quota
 - [ ] 🙋 Confirm the beta city. Addresses and "use my location" work anywhere once the key is in, but the quick-pick neighborhoods are New York only.
 - [ ] 🙋 Pick a host for the server (Render, Fly or Railway) and create an account.
 - [ ] 🤖 Deploy the server with Postgres so two phones can pair and match live, and point the iOS app at it (`API_URL=… npm run ios:online`). The on-device mode stays for the demo and same-phone play.
