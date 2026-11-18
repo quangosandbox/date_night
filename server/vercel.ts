@@ -55,6 +55,12 @@ export function ensureSchema(client: pg.Pool | pg.PoolClient = getPool()) {
 }
 
 type Kind = 'user' | 'couple' | 'session';
+// Postgres jsonb rejects lone UTF-16 surrogates (e.g. half an emoji left by a .slice()),
+// so every string is made well-formed before it's stored.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+export const toDbJson = (doc: unknown) =>
+  JSON.stringify(doc, (_k, v) => (typeof v === 'string' ? v.replace(LONE_SURROGATE, '\uFFFD') : v));
+
 const BUCKET: Record<Kind, keyof DB> = { user: 'users', couple: 'couples', session: 'sessions' };
 
 async function loadInto(c: pg.PoolClient, dbs: DB, sql: string, params: unknown[]) {
@@ -95,7 +101,7 @@ export async function runApi(method: string, path: string, userId: string | null
 
     const before = new Map<string, string>();
     for (const kind of Object.keys(BUCKET) as Kind[])
-      for (const [id, doc] of Object.entries(dbs[BUCKET[kind]])) before.set(`${kind}:${id}`, JSON.stringify(doc));
+      for (const [id, doc] of Object.entries(dbs[BUCKET[kind]])) before.set(`${kind}:${id}`, toDbJson(doc));
 
     const result = await scope.run(dbs, () => handle(method, path, userId, body));
 
@@ -105,7 +111,7 @@ export async function runApi(method: string, path: string, userId: string | null
         for (const [id, doc] of Object.entries(dbs[BUCKET[kind]]) as [string, Record<string, unknown>][]) {
           const key = `${kind}:${id}`;
           seen.add(key);
-          const json = JSON.stringify(doc);
+          const json = toDbJson(doc);
           if (before.get(key) === json) continue;
           const { coupleId, invite } = docMeta(kind, doc);
           await c.query(

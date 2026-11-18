@@ -124,7 +124,7 @@ export function toVenue(p: GPlace, queried?: string): Venue {
       author: r.authorAttribution?.displayName ?? 'Google user',
       authorUrl: r.authorAttribution?.uri,
       stars: r.rating,
-      text: text.length > 240 ? `${text.slice(0, 237).trimEnd()}…` : text,
+      text: clip(text, 240),
       when: r.relativePublishTimeDescription ?? '',
       source: 'Google',
     }));
@@ -151,6 +151,12 @@ export function toVenue(p: GPlace, queried?: string): Venue {
     handoff: { mapsUrl: p.googleMapsUri, website: p.websiteUri, phone: p.nationalPhoneNumber, reservable: p.reservable },
     dataAttribution: 'Google Maps',
   };
+}
+
+/** Shortens by whole characters, never splitting an emoji's surrogate pair. */
+export function clip(text: string, max: number) {
+  const chars = Array.from(text);
+  return chars.length > max ? `${chars.slice(0, max - 3).join('').trimEnd()}…` : text;
 }
 
 const CACHE_MS = 10 * 60 * 1000;
